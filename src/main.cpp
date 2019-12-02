@@ -4,6 +4,7 @@
 #include "shader.hpp"
 
 #include <chrono>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <exception>
@@ -25,6 +26,8 @@ using glm::rotate;
 using glm::scale;
 using glm::value_ptr;
 using glm::vec3;
+using glm::normalize;
+using glm::cross;
 
 using std::array;
 using std::begin;
@@ -40,6 +43,16 @@ using std::unique_ptr;
 using std::shared_ptr;
 using std::vector;
 
+template<typename T>
+T clamp(T x, T min, T max) {
+    return ((x < min) ? min : ((x > max) ? max : x));
+}
+
+template<typename T>
+T lerp(T a, T b, float alpha) {
+    return (1.0f - alpha) * a + alpha * b;
+}
+
 // /////////////////////////////////////////////////// Struct: GraphNode //
 struct GraphNode {
     mat4 transform;
@@ -54,7 +67,8 @@ struct GraphNode {
 
         if (model) {
             model->shader->use();
-            model->shader->uniformMatrix4fv("transform", value_ptr(renderTransform));
+            model->shader->uniformMatrix4fv("transform",
+                                            value_ptr(renderTransform));
 
             model->render(model->shader, overrideTexture);
         }
@@ -68,7 +82,7 @@ struct GraphNode {
 // /////////////////////////////////////////////////////////// Constants //
 int const WINDOW_WIDTH = 1589;
 int const WINDOW_HEIGHT = 982;
-char const *WINDOW_TITLE = "Tomasz Witczak 216920 - Zadanie 3";
+char const *WINDOW_TITLE = "Tomasz Witczak 216920 - Zadanie 4";
 
 // /////////////////////////////////////////////////////////// Variables //
 // ----------------------------------------------------------- Window -- //
@@ -76,14 +90,30 @@ GLFWwindow *window = nullptr;
 
 // ---------------------------------------------------------- Shaders -- //
 shared_ptr<Shader> modelShader,
-                   sphereShader;
+        sphereShader;
 
 // --------------------------------------------------------- Textures -- //
 GLuint plywoodTexture = 0,
-       metalTexture = 0;
+        metalTexture = 0;
 
-// -------------------------------------------------- Camera position -- //
-vec3 cameraPos(0.6f, 1.7f, 2.5f);
+// ----------------------------------------------------------- Camera -- //
+vec3 cameraPos(0.0f),
+        cameraFront(0.0f, 0.0f, -1.0f),
+        cameraUp(0.0f, 1.0f, 0.0f);
+
+vec3 cameraPosTarget = cameraPos;
+vec3 cameraFrontTarget = cameraFront;
+
+GLfloat pitch = 0.0f,
+        yaw = 0.0f;
+
+bool grabMouse = true;
+bool isThisFirstIteration = true;
+
+// ------------------------------------------------------------ Mouse -- //
+GLfloat mousePositionLastX = WINDOW_WIDTH / 2.0f;
+GLfloat mousePositionLastY = WINDOW_HEIGHT / 2.0f;
+GLfloat mouseSensitivityFactor = 0.01f;
 
 // ------------------------------------------------------ Scene graph -- //
 GraphNode scene;
@@ -114,9 +144,9 @@ GLuint loadTextureFromFile(string const &filename) {
 
         int imageWidth, imageHeight, imageNumberOfChannels;
         unsigned char *textureData = stbi_load(
-            filename.c_str(),
-            &imageWidth, &imageHeight,
-            &imageNumberOfChannels, 0);
+                filename.c_str(),
+                &imageWidth, &imageHeight,
+                &imageNumberOfChannels, 0);
 
         if (textureData == nullptr) {
             throw exception("Failed to load texture!");
@@ -127,10 +157,14 @@ GLuint loadTextureFromFile(string const &filename) {
                      imageWidth, imageHeight, 0,
                      [&]() -> GLenum {
                          switch (imageNumberOfChannels) {
-                             case 1:  return GL_RED;
-                             case 3:  return GL_RGB;
-                             case 4:  return GL_RGBA;
-                             default: return GL_RGB;
+                             case 1:
+                                 return GL_RED;
+                             case 3:
+                                 return GL_RGB;
+                             case 4:
+                                 return GL_RGBA;
+                             default:
+                                 return GL_RGB;
                          }
                      }(),
                      GL_UNSIGNED_BYTE, textureData);
@@ -156,7 +190,7 @@ private:
     GLuint vao, vbo;
     GLuint texture;
 
-    vec3 const point {0.0f, 0.0f, 0.0f};
+    vec3 const point{0.0f, 0.0f, 0.0f};
 
 public:
     static int subdivisionLevel;
@@ -166,15 +200,15 @@ public:
         glGenBuffers(1, &vbo);
 
         glBindVertexArray(vao);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex), &point,
-                        GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex), &point,
+                     GL_STATIC_DRAW);
 
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-                        sizeof(vec3), nullptr);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+                              sizeof(vec3), nullptr);
 
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
         texture = loadTextureFromFile("res/textures/jupiter.jpg");
@@ -190,22 +224,24 @@ public:
         shader->use();
 
         sphereShader->uniform1i("subdivisionLevelHorizontal",
-                subdivisionLevel + 2);
+                                subdivisionLevel + 2);
         sphereShader->uniform1i("subdivisionLevelVertical",
-                subdivisionLevel + 1);
+                                subdivisionLevel + 1);
 
         sphereShader->uniform1i("texture0", 0);
 
         glEnable(GL_DEPTH_TEST);
 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, overrideTexture != 0 ? overrideTexture : texture);
+        glBindTexture(GL_TEXTURE_2D,
+                      overrideTexture != 0 ? overrideTexture : texture);
 
         glBindVertexArray(vao);
-            glDrawArrays(GL_POINTS, 0, 1);
+        glDrawArrays(GL_POINTS, 0, 1);
         glBindVertexArray(0);
     }
 };
+
 int Sphere::subdivisionLevel = Sphere::SUBDIVISION_LEVEL_MAX;
 
 
@@ -249,14 +285,14 @@ void prepareUserInterfaceWindow() {
 // //////////////////////////////////////////////////////// Setup OpenGL //
 void setupGLFW() {
     glfwSetErrorCallback(
-        [](int const errorNumber,
-           char const *description) {
-            cerr << "GLFW;"
-                 << "Error " << errorNumber
-                 << "; "
-                 << "Description: "
-                 << description;
-        });
+            [](int const errorNumber,
+               char const *description) {
+                cerr << "GLFW;"
+                     << "Error " << errorNumber
+                     << "; "
+                     << "Description: "
+                     << description;
+            });
     if (!glfwInit()) {
         throw exception("glfwInit error");
     }
@@ -288,15 +324,16 @@ void initializeOpenGLLoader() {
     failedToInitializeOpenGL = (glewInit() != GLEW_OK);
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
     failedToInitializeOpenGL = !gladLoadGLLoader(
-        (GLADloadproc)glfwGetProcAddress);
+            (GLADloadproc) glfwGetProcAddress);
 #endif
     if (failedToInitializeOpenGL) {
         throw exception(
-            "Failed to initialize OpenGL loader!");
+                "Failed to initialize OpenGL loader!");
     }
 }
 
-void setupSceneGraph(float const deltaTime, float const displayWidth, float const displayHeight) {
+void setupSceneGraph(float const deltaTime, float const displayWidth,
+                     float const displayHeight) {
     static mat4 const identity = mat4(1.0f);
     static float angle = 0.0f;
     angle += glm::radians(45.0f) * deltaTime;
@@ -322,7 +359,8 @@ void setupSceneGraph(float const deltaTime, float const displayWidth, float cons
 
     shared_ptr<GraphNode> secondOrbit = make_shared<GraphNode>();
     secondOrbit->transform =
-            glm::rotate(identity, glm::radians(45.0f), vec3(1.0f, 0.0f, 0.0f)) *
+            glm::rotate(identity, glm::radians(45.0f),
+                        vec3(1.0f, 0.0f, 0.0f)) *
             glm::scale(identity, vec3(0.5f));
     secondOrbit->model = orbit;
     secondOrbit->overrideTexture = plywoodTexture;
@@ -356,7 +394,8 @@ void setupSceneGraph(float const deltaTime, float const displayWidth, float cons
 
     shared_ptr<GraphNode> firstOrbit = make_shared<GraphNode>();
     firstOrbit->transform =
-            glm::rotate(identity, glm::radians(90.0f), vec3(1.0f, 0.0f, 0.0f)) *
+            glm::rotate(identity, glm::radians(90.0f),
+                        vec3(1.0f, 0.0f, 0.0f)) *
             glm::scale(identity, vec3(10.0f));
     firstOrbit->model = orbit;
     firstOrbit->overrideTexture = metalTexture;
@@ -373,14 +412,16 @@ void setupSceneGraph(float const deltaTime, float const displayWidth, float cons
     shared_ptr<GraphNode> ball2 = make_shared<GraphNode>();
     ball2->transform =
             glm::translate(identity, vec3(0.75f, 0.0f, 0.75f)) *
-            glm::rotate(identity, glm::radians(90.0f), vec3(1.0f, 0.0f, 0.0f)) *
+            glm::rotate(identity, glm::radians(90.0f),
+                        vec3(1.0f, 0.0f, 0.0f)) *
             glm::scale(identity, vec3(0.6f));
     ball2->model = sphere;
 
     shared_ptr<GraphNode> notLonelyBlue = make_shared<GraphNode>();
     notLonelyBlue->transform =
             glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f)) *
-            glm::rotate(identity, glm::radians(90.0f), vec3(1.0f, 0.0f, 0.0f)) *
+            glm::rotate(identity, glm::radians(90.0f),
+                        vec3(1.0f, 0.0f, 0.0f)) *
             glm::scale(identity, vec3(0.1f));
     notLonelyBlue->model = guitar;
     notLonelyBlue->children.clear();
@@ -388,12 +429,16 @@ void setupSceneGraph(float const deltaTime, float const displayWidth, float cons
 
     // Scene
     mat4 const projection = perspective(radians(60.0f),
-                                        ((float)displayWidth) / ((float)displayHeight),
+                                        ((float) displayWidth) /
+                                        ((float) displayHeight),
                                         0.01f, 100.0f);
 
-    mat4 const view = lookAt(cameraPos,//vec3(-0.5f, 2.0f, 2.0f),
-                             vec3(0.0f, 0.0f, 0.0f),
-                             vec3(0.0f, 1.0f, 0.0f));
+    cameraPos = lerp(cameraPos, cameraPosTarget, 0.1f);
+    cameraFront = lerp(cameraFront, cameraFrontTarget, 0.1f);
+
+    mat4 const view = lookAt(cameraPos,
+                             cameraPos + cameraFront,
+                             cameraUp);
 
     scene.transform = projection * view;
     scene.children.clear();
@@ -402,12 +447,85 @@ void setupSceneGraph(float const deltaTime, float const displayWidth, float cons
     scene.children.push_back(notLonelyBlue);
 }
 
+void mouseCallback(GLFWwindow *window, double x, double y) {
+    // Remove first iteration's shutter
+    if (isThisFirstIteration) {
+        mousePositionLastX = x;
+        mousePositionLastY = y;
+        isThisFirstIteration = false;
+    }
+
+    // Calculate mouse offset and update its position
+    GLfloat offsetX = mouseSensitivityFactor * (x - mousePositionLastX);
+    GLfloat offsetY = mouseSensitivityFactor * (-(y - mousePositionLastY));
+
+    mousePositionLastX = x;
+    mousePositionLastY = y;
+
+    // Update camera's Euler angles
+    pitch = clamp(pitch + offsetY, radians(-89.0f), radians(89.0f));
+    yaw += offsetX;
+
+    // Update camera's front vector
+    cameraFrontTarget = normalize(
+            vec3(cos(yaw) * cos(pitch),
+                 sin(pitch),
+                 sin(yaw) * cos(pitch))
+    );
+}
+
+void handleKeyboardInput(float const deltaTime) {
+    float const CAMERA_SPEED = 2.0f;
+
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+        cameraPosTarget +=
+                deltaTime * CAMERA_SPEED * normalize(cameraFront);
+    }
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        cameraPosTarget -=
+                deltaTime * CAMERA_SPEED * normalize(cameraFront);
+    }
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        cameraPosTarget -= deltaTime * CAMERA_SPEED *
+                           normalize(cross(cameraFront, cameraUp));
+    }
+    if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
+        cameraPosTarget += deltaTime * CAMERA_SPEED *
+                           normalize(cross(cameraFront, cameraUp));
+    }
+
+    static bool spacePressed = false;
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS &&
+        !spacePressed) {
+        grabMouse = !grabMouse;
+        spacePressed = true;
+
+        if (grabMouse) {
+            isThisFirstIteration = true;
+        }
+
+        glfwSetInputMode(window, GLFW_CURSOR,
+                         grabMouse ? GLFW_CURSOR_DISABLED
+                                   : GLFW_CURSOR_NORMAL);
+        glfwSetCursorPosCallback(window,
+                                 grabMouse ? mouseCallback : nullptr);
+
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
+        spacePressed = false;
+    }
+}
+
 void setupOpenGL() {
     setupGLFW();
     createWindow();
     initializeOpenGLLoader();
 
-    plywoodTexture = loadTextureFromFile("res/textures/plywood.jpg");
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetCursorPosCallback(window, mouseCallback);
+
+    plywoodTexture = loadTextureFromFile(
+            "res/textures/plywood.jpg");
     metalTexture = loadTextureFromFile("res/textures/metal.jpg");
 
     amplifier = make_shared<Model>("res/models/orange-th30.obj");
@@ -462,6 +580,7 @@ void performMainLoop() {
 
         // --------------------------------------------------- Events -- //
         glfwPollEvents();
+        handleKeyboardInput(deltaTime.count());
 
         // ----------------------------------- Get current frame size -- //
         int displayWidth, displayHeight;
@@ -476,7 +595,8 @@ void performMainLoop() {
 
         // --------------------------------------- Set rendering mode -- //
         glEnable(GL_DEPTH_TEST);
-        glPolygonMode(GL_FRONT_AND_BACK, wireframeMode ? GL_LINE : GL_FILL);
+        glPolygonMode(GL_FRONT_AND_BACK,
+                      wireframeMode ? GL_LINE : GL_FILL);
 
         // --------------------------------------------- Render scene -- //
         setupSceneGraph(deltaTime.count(), displayWidth, displayHeight);
@@ -485,7 +605,7 @@ void performMainLoop() {
         // ------------------------------------------------------- UI -- //
         prepareUserInterfaceWindow();
         ImGui_ImplOpenGL3_RenderDrawData(
-            ImGui::GetDrawData());
+                ImGui::GetDrawData());
 
         // -------------------------------------------- Update screen -- //
         glfwMakeContextCurrent(window);
