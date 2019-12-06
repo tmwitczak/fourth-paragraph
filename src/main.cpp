@@ -53,6 +53,9 @@ T lerp(T a, T b, float alpha) {
     return (1.0f - alpha) * a + alpha * b;
 }
 
+vec3 cameraPos(0.0f);
+mat4 vp;
+
 // /////////////////////////////////////////////////// Struct: GraphNode //
 struct GraphNode {
     mat4 transform;
@@ -62,20 +65,25 @@ struct GraphNode {
 
     GraphNode() : overrideTexture(0), model(nullptr) {}
 
-    void render(mat4 const &world = mat4(1.0f)) {
-        mat4 renderTransform = world * transform;
+    void render(mat4 const &vp = mat4(1.0f)) {
+        mat4 renderTransform = vp * transform;
 
         if (model) {
             model->shader->use();
             model->shader->uniformMatrix4fv("transform",
                                             value_ptr(renderTransform));
+            model->shader->uniformMatrix4fv("world",
+                                            value_ptr(transform));
+            model->shader->uniformMatrix4fv("vpMatrix",
+                                            value_ptr(vp));
+            model->shader->uniform3f("viewPos", cameraPos.x, cameraPos.y, cameraPos.z);
 
             model->render(model->shader, overrideTexture);
         }
 
-        for (auto const &child : children) {
-            child->render(renderTransform);
-        }
+//        for (auto const &child : children) {
+//            child->render(renderTransform);
+//        }
     }
 };
 
@@ -97,8 +105,7 @@ GLuint plywoodTexture = 0,
         metalTexture = 0;
 
 // ----------------------------------------------------------- Camera -- //
-vec3 cameraPos(0.0f),
-        cameraFront(0.0f, 0.0f, -1.0f),
+vec3 cameraFront(0.0f, 0.0f, -1.0f),
         cameraUp(0.0f, 1.0f, 0.0f);
 
 vec3 cameraPosTarget = cameraPos;
@@ -339,112 +346,114 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
     angle += glm::radians(45.0f) * deltaTime;
 
     // Scene elements
-    shared_ptr<GraphNode> gibson = make_shared<GraphNode>();
-    gibson->transform =
-            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f)) *
-            glm::rotate(identity, -angle, vec3(0.5f, 0.25f, 0.0f)) *
-            glm::scale(identity, vec3(0.1f));
-    gibson->model = guitar;
-    gibson->overrideTexture = plywoodTexture;
+//    shared_ptr<GraphNode> gibson = make_shared<GraphNode>();
+//    gibson->transform =
+//            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
+//            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f)) *
+//            glm::rotate(identity, -angle, vec3(0.5f, 0.25f, 0.0f)) *
+//            glm::scale(identity, vec3(0.1f));
+//    gibson->model = guitar;
+//    gibson->overrideTexture = plywoodTexture;
+//
+//    shared_ptr<GraphNode> ball = make_shared<GraphNode>();
+//    ball->transform =
+//            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
+//            glm::translate(identity, vec3(1.0f, 0.0f, 0.0f)) *
+//            glm::rotate(identity, 2.0f * angle, vec3(0.0f, 0.0f, 1.0f)) *
+//            glm::scale(identity, vec3(0.1f));
+//    ball->model = sphere;
+//    ball->overrideTexture = plywoodTexture;
+//
+//    shared_ptr<GraphNode> secondOrbit = make_shared<GraphNode>();
+//    secondOrbit->transform =
+//            glm::rotate(identity, glm::radians(45.0f),
+//                        vec3(1.0f, 0.0f, 0.0f)) *
+//            glm::scale(identity, vec3(0.5f));
+//    secondOrbit->model = orbit;
+//    secondOrbit->overrideTexture = plywoodTexture;
+//    secondOrbit->children.clear();
+//    secondOrbit->children.push_back(ball);
+//    secondOrbit->children.push_back(gibson);
 
-    shared_ptr<GraphNode> ball = make_shared<GraphNode>();
-    ball->transform =
-            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-            glm::translate(identity, vec3(1.0f, 0.0f, 0.0f)) *
-            glm::rotate(identity, 2.0f * angle, vec3(0.0f, 0.0f, 1.0f)) *
-            glm::scale(identity, vec3(0.1f));
-    ball->model = sphere;
-    ball->overrideTexture = plywoodTexture;
+//    shared_ptr<GraphNode> amp = make_shared<GraphNode>();
+//    amp->transform =
+//            glm::rotate(identity, 1.5f * angle, vec3(1.0f, 0.0f, 1.0f)) *
+//            glm::scale(identity, vec3(0.004f));
+//    amp->model = amplifier;
+//    amp->overrideTexture = metalTexture;
 
-    shared_ptr<GraphNode> secondOrbit = make_shared<GraphNode>();
-    secondOrbit->transform =
-            glm::rotate(identity, glm::radians(45.0f),
-                        vec3(1.0f, 0.0f, 0.0f)) *
-            glm::scale(identity, vec3(0.5f));
-    secondOrbit->model = orbit;
-    secondOrbit->overrideTexture = plywoodTexture;
-    secondOrbit->children.clear();
-    secondOrbit->children.push_back(ball);
-    secondOrbit->children.push_back(gibson);
-
-    shared_ptr<GraphNode> amp = make_shared<GraphNode>();
-    amp->transform =
-            glm::rotate(identity, 1.5f * angle, vec3(1.0f, 0.0f, 1.0f)) *
-            glm::scale(identity, vec3(0.004f));
-    amp->model = amplifier;
-    amp->overrideTexture = metalTexture;
-
-    shared_ptr<GraphNode> otherSystem = make_shared<GraphNode>();
-    otherSystem->transform =
-            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f));
-    otherSystem->children.clear();
-    otherSystem->children.push_back(secondOrbit);
-    otherSystem->children.push_back(amp);
-
-    shared_ptr<GraphNode> jupiter = make_shared<GraphNode>();
-    jupiter->transform =
-            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-            glm::translate(identity, vec3(1.0f, 0.0f, 0.0f)) *
-            glm::rotate(identity, -angle, vec3(0.0f, 1.0f, 1.0f)) *
-            glm::scale(identity, vec3(0.3f));
-    jupiter->model = sphere;
-    jupiter->overrideTexture = metalTexture;
-
-    shared_ptr<GraphNode> firstOrbit = make_shared<GraphNode>();
-    firstOrbit->transform =
-            glm::rotate(identity, glm::radians(90.0f),
-                        vec3(1.0f, 0.0f, 0.0f)) *
-            glm::scale(identity, vec3(10.0f));
-    firstOrbit->model = orbit;
-    firstOrbit->overrideTexture = metalTexture;
-    firstOrbit->children.clear();
-    firstOrbit->children.push_back(jupiter);
-    firstOrbit->children.push_back(otherSystem);
-
-    shared_ptr<GraphNode> lonelyBlue = make_shared<GraphNode>();
-    lonelyBlue->transform =
+//    shared_ptr<GraphNode> otherSystem = make_shared<GraphNode>();
+//    otherSystem->transform =
+//            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
+//            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f));
+//    otherSystem->children.clear();
+//    otherSystem->children.push_back(secondOrbit);
+//    otherSystem->children.push_back(amp);
+//
+//    shared_ptr<GraphNode> jupiter = make_shared<GraphNode>();
+//    jupiter->transform =
+//            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
+//            glm::translate(identity, vec3(1.0f, 0.0f, 0.0f)) *
+//            glm::rotate(identity, -angle, vec3(0.0f, 1.0f, 1.0f)) *
+//            glm::scale(identity, vec3(0.3f));
+//    jupiter->model = sphere;
+//    jupiter->overrideTexture = metalTexture;
+//
+//    shared_ptr<GraphNode> firstOrbit = make_shared<GraphNode>();
+//    firstOrbit->transform =
+//            glm::rotate(identity, glm::radians(90.0f),
+//                        vec3(1.0f, 0.0f, 0.0f)) *
+//            glm::scale(identity, vec3(10.0f));
+//    firstOrbit->model = orbit;
+//    firstOrbit->overrideTexture = metalTexture;
+//    firstOrbit->children.clear();
+//    firstOrbit->children.push_back(jupiter);
+//    firstOrbit->children.push_back(otherSystem);
+//
+//    shared_ptr<GraphNode> lonelyBlue = make_shared<GraphNode>();
+    scene.transform =
             glm::translate(identity, vec3(1.25f, 0.5f, -0.5f)) *
             glm::scale(identity, vec3(0.0125f));
-    lonelyBlue->model = amplifier;
-
-    shared_ptr<GraphNode> ball2 = make_shared<GraphNode>();
-    ball2->transform =
-            glm::translate(identity, vec3(0.75f, 0.0f, 0.75f)) *
-            glm::rotate(identity, glm::radians(90.0f),
-                        vec3(1.0f, 0.0f, 0.0f)) *
-            glm::scale(identity, vec3(0.6f));
-    ball2->model = sphere;
-
-    shared_ptr<GraphNode> notLonelyBlue = make_shared<GraphNode>();
-    notLonelyBlue->transform =
-            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f)) *
-            glm::rotate(identity, glm::radians(90.0f),
-                        vec3(1.0f, 0.0f, 0.0f)) *
-            glm::scale(identity, vec3(0.1f));
-    notLonelyBlue->model = guitar;
-    notLonelyBlue->children.clear();
-    notLonelyBlue->children.push_back(firstOrbit);
+    scene.model = amplifier;
+//
+//    shared_ptr<GraphNode> ball2 = make_shared<GraphNode>();
+//    ball2->transform =
+//            glm::translate(identity, vec3(0.75f, 0.0f, 0.75f)) *
+//            glm::rotate(identity, glm::radians(90.0f),
+//                        vec3(1.0f, 0.0f, 0.0f)) *
+//            glm::scale(identity, vec3(0.6f));
+//    ball2->model = sphere;
+//
+//    shared_ptr<GraphNode> notLonelyBlue = make_shared<GraphNode>();
+//    notLonelyBlue->transform =
+//            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f)) *
+//            glm::rotate(identity, glm::radians(90.0f),
+//                        vec3(1.0f, 0.0f, 0.0f)) *
+//            glm::scale(identity, vec3(0.1f));
+//    notLonelyBlue->model = guitar;
+//    notLonelyBlue->children.clear();
+//    notLonelyBlue->children.push_back(firstOrbit);
 
     // Scene
-    mat4 const projection = perspective(radians(60.0f),
-                                        ((float) displayWidth) /
-                                        ((float) displayHeight),
-                                        0.01f, 100.0f);
+//    mat4 const projection = perspective(radians(60.0f),
+//                                        ((float) displayWidth) /
+//                                        ((float) displayHeight),
+//                                        0.01f, 100.0f);
+//
+//    cameraPos = lerp(cameraPos, cameraPosTarget, 0.1f);
+//    cameraFront = lerp(cameraFront, cameraFrontTarget, 0.1f);
+//
+//    mat4 const view = lookAt(cameraPos,
+//                             cameraPos + cameraFront,
+//                             cameraUp);
+//
+//    vp = projection * view;
 
-    cameraPos = lerp(cameraPos, cameraPosTarget, 0.1f);
-    cameraFront = lerp(cameraFront, cameraFrontTarget, 0.1f);
-
-    mat4 const view = lookAt(cameraPos,
-                             cameraPos + cameraFront,
-                             cameraUp);
-
-    scene.transform = projection * view;
+//    scene.transform = projection * view;
     scene.children.clear();
-    scene.children.push_back(ball2);
-    scene.children.push_back(lonelyBlue);
-    scene.children.push_back(notLonelyBlue);
+//    scene.children.push_back(ball2);
+//    scene.children.push_back(lonelyBlue);
+//    scene.children.push_back(notLonelyBlue);
 }
 
 void mouseCallback(GLFWwindow *window, double x, double y) {
@@ -529,7 +538,7 @@ void setupOpenGL() {
     metalTexture = loadTextureFromFile("res/textures/metal.jpg");
 
     amplifier = make_shared<Model>("res/models/orange-th30.obj");
-    guitar = make_shared<Model>("res/models/gibson-es335.obj");
+//    guitar = make_shared<Model>("res/models/gibson-es335.obj");
     orbit = make_shared<Model>("res/models/orbit.obj");
 
     modelShader = make_shared<Shader>("res/shaders/model/vertex.glsl",
@@ -543,7 +552,7 @@ void setupOpenGL() {
     sphere = make_shared<Sphere>();
 
     amplifier->shader = modelShader;
-    guitar->shader = modelShader;
+//    guitar->shader = modelShader;
     orbit->shader = modelShader;
     sphere->shader = sphereShader;
 
@@ -600,7 +609,21 @@ void performMainLoop() {
 
         // --------------------------------------------- Render scene -- //
         setupSceneGraph(deltaTime.count(), displayWidth, displayHeight);
-        scene.render();
+        mat4 const projection = perspective(radians(60.0f),
+                                            ((float) displayWidth) /
+                                            ((float) displayHeight),
+                                            0.01f, 100.0f);
+
+        cameraPos = lerp(cameraPos, cameraPosTarget, 0.1f);
+        cameraFront = lerp(cameraFront, cameraFrontTarget, 0.1f);
+
+        mat4 const view = lookAt(cameraPos,
+                                 cameraPos + cameraFront,
+                                 cameraUp);
+
+        vp = projection * view;
+
+        scene.render(vp);
 
         // ------------------------------------------------------- UI -- //
         prepareUserInterfaceWindow();

@@ -35,6 +35,21 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/../res"
         "${CMAKE_CURRENT_BINARY_DIR}/res")
+add_custom_target(
+        always_run ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/../res"
+        "${CMAKE_CURRENT_BINARY_DIR}/res"
+#        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/_res
+)
+#add_custom_command(
+#        OUTPUT
+#        ${CMAKE_CURRENT_BINARY_DIR}/_res
+#        ${CMAKE_CURRENT_BINARY_DIR}/res
+#        COMMAND ${CMAKE_COMMAND} -E copy_directory
+#        "${CMAKE_CURRENT_SOURCE_DIR}/../res"
+#        "${CMAKE_CURRENT_BINARY_DIR}/res"
+#)
 
 # Create virtual folders to make it look nicer in VS
 if (MSVC_IDE)

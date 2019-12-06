@@ -26,8 +26,8 @@ void Mesh::render(shared_ptr<Shader> shader,
                                  ? overrideTexture
                                  : textures[0].id);
     glBindVertexArray(vao);
-        glDrawElements(GL_TRIANGLES, indices.size(),
-                       GL_UNSIGNED_INT, nullptr);
+        glDrawElementsInstanced(GL_TRIANGLES, indices.size(),
+                       GL_UNSIGNED_INT, nullptr, 100);
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
