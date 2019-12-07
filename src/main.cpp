@@ -60,7 +60,18 @@ vec3 ImVec4ToVec3(ImVec4 a) {
     return vec3(a.x, a.y, a.z);
 }
 
+enum LightType {
+    LT_POINT,
+    LT_DIRECTIONAL,
+    LT_SPOT
+};
 struct LightParameters {
+    string name;
+    LightType type;
+    float enable;
+    ImVec4 direction;
+    ImVec4 position;
+    float angle;
     float ambientIntensity;
     ImVec4 ambientColor;
     float diffuseIntensity;
@@ -70,7 +81,11 @@ struct LightParameters {
     float specularShininess;
 
     void setShaderParameters(shared_ptr<Shader> shader) {
-        string name = "test";
+        shader->uniform1f(name + ".enable", enable);
+
+        shader->uniform3f(name + ".direction", ImVec4ToVec3(direction));
+        shader->uniform3f(name + ".position", ImVec4ToVec3(position));
+        shader->uniform1f(name + ".angle", angle);
 
         shader->uniform1f(name + ".ambientIntensity", ambientIntensity);
         shader->uniform3f(name + ".ambientColor", ImVec4ToVec3(ambientColor));
@@ -83,6 +98,45 @@ struct LightParameters {
 };
 
 LightParameters lightDirectional = {
+        "lightDirectional",
+        LT_DIRECTIONAL,
+        1.0,
+        {0.0, -1.0, 0.0, 1.0},
+        {0.0, 0.0, 0.0, 1.0},
+        radians(0.0),
+        0.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
+};
+LightParameters lightPoint = {
+        "lightPoint",
+        LT_POINT,
+        0.0,
+        {0.0, 0.0, 0.0, 1.0},
+        {0.0, 10.0, 0.0, 1.0},
+        radians(0.0),
+        0.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
+};
+LightParameters lightSpot1 = {
+        "lightSpot1",
+        LT_SPOT,
+        0.0,
+        {0.0, -1.0, 0.0, 1.0},
+        {0.0, 5.0, 0.0, 1.0},
+        radians(30.0),
+        0.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
+};
+LightParameters lightSpot2 = {
+        "lightSpot2",
+        LT_SPOT,
+        0.0,
+        {0.0, -1.0, 0.0, 1.0},
+        {0.0, 10.0, 0.0, 1.0},
+        radians(45.0),
         0.0, {1.0, 1.0, 1.0, 1.0},
         1.0, {1.0, 1.0, 1.0, 1.0},
         1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
@@ -109,7 +163,11 @@ struct GraphNode {
             model->shader->uniformMatrix4fv("vpMatrix",
                                             value_ptr(vp));
             model->shader->uniform3f("viewPos", cameraPos.x, cameraPos.y, cameraPos.z);
+
             lightDirectional.setShaderParameters(model->shader);
+            lightPoint.setShaderParameters(model->shader);
+            lightSpot1.setShaderParameters(model->shader);
+            lightSpot2.setShaderParameters(model->shader);
 
             model->render(model->shader, overrideTexture);
         }
@@ -300,12 +358,43 @@ void setupDearImGui() {
     ImGui::GetIO().Fonts->AddFontFromFileTTF("res/fonts/montserrat.ttf", 12.0f, nullptr);
 }
 
+void constructTabForLight(LightParameters &light) {
+    ImGui::SliderFloat("Enable", &light.enable, 0.0f, 1.0f);
+    if (light.type != LT_POINT) {
+        ImGui::SliderFloat3("Direction", (float *) &light.direction, -1.0f, 1.0f);
+    } else {
+        ImGui::SliderFloat3("Position", (float *) &light.position, -10.0f, 10.0f);
+    }
+    if (light.type == LT_SPOT) {
+        ImGui::SliderAngle("Angle", &light.angle, 0.0f, 90.0f);
+    }
+    ImGui::Separator();
+
+    ImGui::Text("Ambient");
+    ImGui::SliderFloat("Intensity", &light.ambientIntensity, 0.0f, 1.0f);
+    ImGui::ColorEdit3("Color", (float *) &light.ambientColor);
+    ImGui::Separator();
+
+    ImGui::Text("Diffuse");
+    ImGui::SliderFloat("Intensity ", &light.diffuseIntensity, 0.0f, 1.0f);
+    ImGui::ColorEdit3("Color ", (float *) &light.diffuseColor);
+    ImGui::Separator();
+
+    ImGui::Text("Specular");
+    ImGui::SliderFloat("Intensity  ", &light.specularIntensity, 0.0f, 1.0f);
+    ImGui::ColorEdit3("Color  ", (float *) &light.specularColor);
+    ImGui::SliderFloat("Shininess", &light.specularShininess, 1.0f, 128.0f);
+    ImGui::Separator();
+
+    ImGui::EndTabItem();
+}
+
 void prepareUserInterfaceWindow() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     ImGui::Begin("Zadanie 4", nullptr,
-            ImGuiWindowFlags_NoDecoration);
+                 ImGuiWindowFlags_NoDecoration);
     {
         if (ImGui::Button("Tryb siatki")) {
             wireframeMode = !wireframeMode;
@@ -314,38 +403,16 @@ void prepareUserInterfaceWindow() {
         ImGui::BeginTabBar("Lights");
 
         if (ImGui::BeginTabItem("Directional")) {
-            ImGui::Text("Ambient");
-            ImGui::SliderFloat("Intensity", &lightDirectional.ambientIntensity, 0.0f, 1.0f);
-            ImGui::ColorEdit3("Color", (float *) &lightDirectional.ambientColor);
-            ImGui::Separator();
-
-            ImGui::Text("Diffuse");
-            ImGui::SliderFloat("Intensity ", &lightDirectional.diffuseIntensity, 0.0f, 1.0f);
-            ImGui::ColorEdit3("Color ", (float *) &lightDirectional.diffuseColor);
-            ImGui::Separator();
-
-            ImGui::Text("Specular");
-            ImGui::SliderFloat("Intensity  ", &lightDirectional.specularIntensity, 0.0f, 1.0f);
-            ImGui::ColorEdit3("Color  ", (float *) &lightDirectional.specularColor);
-            ImGui::SliderFloat("Shininess", &lightDirectional.specularShininess, 1.0f, 128.0f);
-            ImGui::Separator();
-
-            ImGui::EndTabItem();
+            constructTabForLight(lightDirectional);
         }
         if (ImGui::BeginTabItem("Point")) {
-            ImGui::Text("todo");
-
-            ImGui::EndTabItem();
+            constructTabForLight(lightPoint);
         }
         if (ImGui::BeginTabItem("Spot 1")) {
-            ImGui::Text("todo");
-
-            ImGui::EndTabItem();
+            constructTabForLight(lightSpot1);
         }
         if (ImGui::BeginTabItem("Spot 2")) {
-            ImGui::Text("todo");
-
-            ImGui::EndTabItem();
+            constructTabForLight(lightSpot2);
         }
 
         ImGui::EndTabBar();

@@ -16,10 +16,15 @@ uniform mat4 vpMatrix;
 uniform mat4 world;
 
 // Lambert + Blinn-Phong
-vec3 lightDir = -normalize(world * vec4(0, -1, 1, 1)).xyz;
 
 // Light parameters
 struct LightParameters {
+    float enable;
+
+    vec3 direction;
+    vec3 position;
+    float angle;
+
     float ambientIntensity;
     vec3 ambientColor;
     float diffuseIntensity;
@@ -29,9 +34,14 @@ struct LightParameters {
     float specularShininess;
 };
 
-uniform LightParameters test;
+uniform LightParameters lightDirectional;
+uniform LightParameters lightPoint;
+uniform LightParameters lightSpot1;
+uniform LightParameters lightSpot2;
 
-vec4 lambertBlinnPhong(LightParameters light) {
+vec4 lambertBlinnPhong(LightParameters light,
+                       vec3 lightDir,
+                       float factor) {
     // Ambient
     float ambientFactor = 1.0;
     vec3 ambient = ambientFactor
@@ -58,14 +68,35 @@ vec4 lambertBlinnPhong(LightParameters light) {
                     * light.specularColor;
 
     // Final lighting
-    return vec4(ambient + diffuse + specular, 1.0);
+    return factor * vec4(ambient + diffuse + specular, 1.0);
+}
+
+vec4 directional(LightParameters light) {
+    return lambertBlinnPhong(light, -normalize(light.direction), 1.0);
+}
+
+vec4 point(LightParameters light) {
+    vec3 lightDir = normalize(light.position - fPosition);
+    return lambertBlinnPhong(light, lightDir, 1.0);
+}
+
+vec4 spot(LightParameters light) {
+    vec3 lightDir = normalize(light.position - fPosition);
+    float spotCosAngle = dot(lightDir, -normalize(light.direction));
+    if (spotCosAngle < cos(light.angle)) {
+        return vec4(0);
+    }
+    return lambertBlinnPhong(light, lightDir, (spotCosAngle - cos(light.angle)) / (1.0 - cos(light.angle)));
 }
 
 // //////////////////////////////////////////////////////////////// Main //
 void main() {
     // Final pixel color
-    outColor = lambertBlinnPhong(test)
-               * texture(texture0, fTexCoords);
+    outColor = (directional(lightDirectional) * lightDirectional.enable
+                + point(lightPoint) * lightPoint.enable
+                + spot(lightSpot1) * lightSpot1.enable
+                + spot(lightSpot2) * lightSpot2.enable)
+                * texture(texture0, fTexCoords);
 }
 
 // ///////////////////////////////////////////////////////////////////// //
