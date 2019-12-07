@@ -53,7 +53,7 @@ T lerp(T a, T b, float alpha) {
     return (1.0f - alpha) * a + alpha * b;
 }
 
-vec3 cameraPos(0.0f);
+vec3 cameraPos(5.0f);
 mat4 vp;
 
 // /////////////////////////////////////////////////// Struct: GraphNode //
@@ -105,7 +105,7 @@ GLuint plywoodTexture = 0,
         metalTexture = 0;
 
 // ----------------------------------------------------------- Camera -- //
-vec3 cameraFront(0.0f, 0.0f, -1.0f),
+vec3 cameraFront(1.0f, 0.0f, 0.0f),
         cameraUp(0.0f, 1.0f, 0.0f);
 
 vec3 cameraPosTarget = cameraPos;
@@ -412,8 +412,9 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
 //
 //    shared_ptr<GraphNode> lonelyBlue = make_shared<GraphNode>();
     scene.transform =
-            glm::translate(identity, vec3(1.25f, 0.5f, -0.5f)) *
-            glm::scale(identity, vec3(0.0125f));
+            identity;
+//            glm::translate(identity, vec3(1.25f, 0.5f, -0.5f)) *
+//            glm::scale(identity, vec3(0.0125f));
     scene.model = amplifier;
 //
 //    shared_ptr<GraphNode> ball2 = make_shared<GraphNode>();
@@ -525,6 +526,9 @@ void handleKeyboardInput(float const deltaTime) {
     }
 }
 
+#include <iostream>
+using namespace std;
+
 void setupOpenGL() {
     setupGLFW();
     createWindow();
@@ -537,9 +541,11 @@ void setupOpenGL() {
             "res/textures/plywood.jpg");
     metalTexture = loadTextureFromFile("res/textures/metal.jpg");
 
-    amplifier = make_shared<Model>("res/models/orange-th30.obj");
+//    amplifier = make_shared<Model>("res/models/orange-th30.obj");
+    amplifier = make_shared<Model>("res/models/teapot.obj");
 //    guitar = make_shared<Model>("res/models/gibson-es335.obj");
-    orbit = make_shared<Model>("res/models/orbit.obj");
+//    guitar = make_shared<Model>("res/models/gibson-es335.obj");
+//    orbit = make_shared<Model>("res/models/orbit.obj");
 
     modelShader = make_shared<Shader>("res/shaders/model/vertex.glsl",
                                       "res/shaders/model/geometry.glsl",
@@ -553,8 +559,8 @@ void setupOpenGL() {
 
     amplifier->shader = modelShader;
 //    guitar->shader = modelShader;
-    orbit->shader = modelShader;
-    sphere->shader = sphereShader;
+//    orbit->shader = modelShader;
+//    sphere->shader = sphereShader;
 
     setupDearImGui();
 }

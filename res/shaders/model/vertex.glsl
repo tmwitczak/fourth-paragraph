@@ -2,11 +2,13 @@
 #version 430 core
 
 // ////////////////////////////////////////////////////////////// Inputs //
-layout (location = 0) in vec3 posV;
-layout (location = 1) in vec2 texCoordV;
+layout (location = 0) in vec3 vPosition;
+layout (location = 1) in vec3 vNormal;
+layout (location = 2) in vec2 vTexCoords;
 
 // ///////////////////////////////////////////////////////////// Outputs //
 out vec2 texCoordG;
+out vec3 gNormal;
 out vec3 fragPos;
 
 // //////////////////////////////////////////////////////////// Uniforms //
@@ -33,9 +35,13 @@ void createTranslations() {
 // //////////////////////////////////////////////////////////////// Main //
 void main() {
     createTranslations();
-    gl_Position = transform * vec4(posV + 750 * translations[gl_InstanceID], 1.0);
-    fragPos = (world * vec4(posV + 750 * translations[gl_InstanceID], 1.0)).xyz;
-    texCoordG = texCoordV;
+    gl_Position = transform * vec4(vPosition + 16 * translations[gl_InstanceID], 1.0);
+//    gl_Position = transform * vec4(vPosition, 1.0);
+    fragPos = (world * vec4(vPosition + 16 * translations[gl_InstanceID], 1.0)).xyz;
+//    fragPos = (world * vec4(vPosition, 1.0)).xyz;
+//    gNormal = normalize(world * vec4(vNormal, 1.0)).xyz + 8 * translations[gl_InstanceID];
+    gNormal = normalize((world * vec4(vNormal, 1.0)).xyz);
+    texCoordG = vTexCoords;
 }
 
 // ///////////////////////////////////////////////////////////////////// //

@@ -17,38 +17,47 @@ uniform mat4 world;
 
 // //////////////////////////////////////////////////////////////// Main //
 void main() {
-    vec3 ambientIntensity = vec3(0.1);
+    // Light parameters
+    vec3 ambient = vec3(0.0);
 
-    vec3 l = normalize(world * vec4(0, -80, 0, 1)).xyz;//normalize(vec3(0, 100, 0) - fPos);
-//    vec3 l = normalize((world * vec4(0, 800, 0, 1)).xyz - fPos);
+    float diffuseFactor = 0.0;
+    vec3 diffuse = vec3(0.0);
+
+    float specularFactor = 0.0;
+    vec3 specular = vec3(0.0);
+
+    // Ambient
+    ambient = vec3(0.1);
+
+    // Diffuse
+    vec3 l = normalize(world * vec4(80, -80, 0, 1)).xyz;//normalize(vec3(0, 100, 0) - fPos);
+    //    vec3 l = normalize((world * vec4(0, 800, 0, 1)).xyz - fPos);
     vec3 n = -normal;
     vec3 c = vec3(1);
     float i = 1;
 
-    vec3 diffuseColor = vec3(0);
-    vec3 specularColor = vec3(0);
 
-    float diffuseFactor = dot(l, n);
+    diffuseFactor = dot(l, n);
 
     if (diffuseFactor > 0) {
-        diffuseColor = diffuseFactor * c * i;
+        diffuse = diffuseFactor * c * i;
 
-        ambientIntensity = vec3(0);
+//        ambient = vec3(0);
 
         //    vec3 lightDir   = l;//normalize(lightPos - FragPos);
         vec3 v = -normalize(viewPos - fPos);
-            vec3 h = normalize(l + v);
-//        vec3 h = normalize(reflect(l, n));
-        float shininess = 16;
+        vec3 h = normalize(l + v);
+        //        vec3 h = normalize(reflect(l, n));
+        float shininess = 64;
         float specularFactor = dot(n, h);
 
         if (specularFactor > 0) {
-            specularColor = c * pow(specularFactor, shininess);
+            specular = c * pow(specularFactor, shininess);
         }
     }
 
 
-    outColor = (vec4(ambientIntensity, 1) + vec4(diffuseColor, 1) + vec4(specularColor, 1)) * texture(texture0, texCoordF);
+    outColor = vec4(ambient + diffuse + specular, 1) * texture(texture0, texCoordF);
 }
 
 // ///////////////////////////////////////////////////////////////////// //

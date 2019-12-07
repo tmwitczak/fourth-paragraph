@@ -1,7 +1,7 @@
 // //////////////////////////////////////////////////////////// Includes //
 #include "model.hpp"
 
-#include <glad/glad.h> 
+#include <glad/glad.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -37,7 +37,7 @@ void Model::render(shared_ptr<Shader> shader0,
         mesh.render(shader0, overrideTexture);
     }
 }
-    
+
 void Model::loadModel(string const &path) {
     Assimp::Importer importer;
 
@@ -70,6 +70,7 @@ void Model::processNode(aiNode *node, const aiScene *scene) {
     }
 }
 
+
 Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
     vector<Vertex> vertices;
     vector<unsigned int> indices;
@@ -82,6 +83,12 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
             mesh->mVertices[i].x,
             mesh->mVertices[i].y,
             mesh->mVertices[i].z
+        };
+
+        vertex.normal = {
+            mesh->mNormals[i].x,
+            mesh->mNormals[i].y,
+            mesh->mNormals[i].z
         };
 
         if(mesh->mTextureCoords[0]) {
