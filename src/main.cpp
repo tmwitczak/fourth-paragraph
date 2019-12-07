@@ -529,7 +529,7 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
 
     lightPoint.position = Vec3ToImVec4(
             glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-            glm::vec4(25, 0, 0, 1));
+            glm::vec4(25, 5, 0, 1));
 
     // Scene elements
     scene.transform.clear();
