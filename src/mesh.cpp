@@ -19,12 +19,17 @@ Mesh::Mesh(vector<Vertex> const &vertices,
 void Mesh::render(shared_ptr<Shader> shader,
                   GLuint const overrideTexture) const {
     shader->use();
-    shader->uniform1i("texture0", 0);
+    shader->uniform1i("texAo", 0);
+    shader->uniform1i("texAlbedo", 1);
+    shader->uniform1i("texMetalness", 2);
+    shader->uniform1i("texRoughness", 3);
+    shader->uniform1i("texNormal", 4);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, (overrideTexture != 0)
-                                 ? overrideTexture
-                                 : textures[0].id);
+    for (int i = 0; i < textures.size(); ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, textures[i].id);
+    }
+
     glBindVertexArray(vao);
         glDrawElementsInstanced(GL_TRIANGLES, indices.size(),
                        GL_UNSIGNED_INT, nullptr, 100);

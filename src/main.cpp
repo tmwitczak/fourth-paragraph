@@ -249,7 +249,7 @@ bool wireframeMode = false;
 bool showLightDummies = true;
 
 // ----------------------------------------------------------- Models -- //
-shared_ptr<Renderable> sphere, amplifier, guitar, lightbulb;
+shared_ptr<Renderable> ground, amplifier, guitar, lightbulb;
 
 // //////////////////////////////////////////////////////////// Textures //
 GLuint loadTextureFromFile(string const &filename) {
@@ -536,18 +536,21 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
     scene.model.clear();
 
     scene.transform.push_back(identity);
-    scene.model.push_back(amplifier);
+    scene.model.push_back(ground);
 
-    if (showLightDummies) {
-        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightPoint.position)));
-        scene.model.push_back(lightbulb);
-
-        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot1.position)));
-        scene.model.push_back(lightbulb);
-
-        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot2.position)));
-        scene.model.push_back(lightbulb);
-    }
+//    scene.transform.push_back(identity);
+//    scene.model.push_back(amplifier);
+//
+//    if (showLightDummies) {
+//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightPoint.position)));
+//        scene.model.push_back(lightbulb);
+//
+//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot1.position)));
+//        scene.model.push_back(lightbulb);
+//
+//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot2.position)));
+//        scene.model.push_back(lightbulb);
+//    }
 }
 
 void mouseCallback(GLFWwindow *window, double x, double y) {
@@ -636,12 +639,9 @@ void setupOpenGL() {
             "res/textures/light.jpg");
     metalTexture = loadTextureFromFile("res/textures/metal.jpg");
 
-//    amplifier = make_shared<Model>("res/models/orange-th30.obj");
-    amplifier = make_shared<Model>("res/models/teapot.obj");
-    lightbulb = make_shared<Model>("res/models/light.obj");
-
-//    guitar = make_shared<Model>("res/models/gibson-es335.obj");
-//    guitar = make_shared<Model>("res/models/gibson-es335.obj");
+    ground = make_shared<Model>("res/models/ground.obj");
+//    amplifier = make_shared<Model>("res/models/teapot.obj");
+//    lightbulb = make_shared<Model>("res/models/light.obj");
 
     modelShader = make_shared<Shader>("res/shaders/model/vertex.glsl",
                                       "res/shaders/model/geometry.glsl",
@@ -652,12 +652,9 @@ void setupOpenGL() {
             "res/shaders/sphere/geometry.glsl",
             "res/shaders/sphere/fragment.glsl");
 
-    sphere = make_shared<Sphere>();
-
-    amplifier->shader = modelShader;
-//    guitar->shader = modelShader;
-    lightbulb->shader = sphereShader;
-    sphere->shader = sphereShader;
+    ground->shader = modelShader;
+//    amplifier->shader = modelShader;
+//    lightbulb->shader = sphereShader;
 
     setupDearImGui();
 }
@@ -667,8 +664,6 @@ void cleanUp() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-
-    sphere = nullptr;
 
     sphereShader = nullptr;
     modelShader = nullptr;

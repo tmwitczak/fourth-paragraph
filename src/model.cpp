@@ -70,6 +70,8 @@ void Model::processNode(aiNode *node, const aiScene *scene) {
     }
 }
 
+#include <iostream>
+using namespace std;
 
 Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
     vector<Vertex> vertices;
@@ -113,14 +115,16 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
 
     aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 
-    for(unsigned int i = 0; i < material->GetTextureCount(aiTextureType_DIFFUSE); ++i) {
-        aiString path;
-        material->GetTexture(aiTextureType_DIFFUSE, i, &path);
-
-        textures.push_back({
-            loadTextureFromFile(path.C_Str()), path.C_Str()
-        });
-    }
+//    for(unsigned int i = 0; i < material->GetTextureCount(aiTextureType_DIFFUSE); ++i) {
+    aiString dirPath;
+    material->GetTexture(aiTextureType_AMBIENT, 0, &dirPath);
+    cout << dirPath.C_Str() << endl;
+    textures.push_back({ loadTextureFromFile(string(dirPath.C_Str()) + "\\ao.jpg"), string(dirPath.C_Str())  + "\\ao.jpg"});
+    textures.push_back({ loadTextureFromFile(string(dirPath.C_Str()) + "\\albedo.jpg"), string(dirPath.C_Str())  + "\\albedo.jpg"});
+    textures.push_back({ loadTextureFromFile(string(dirPath.C_Str()) + "\\metalness.jpg"), string(dirPath.C_Str())  + "\\metalness.jpg"});
+    textures.push_back({ loadTextureFromFile(string(dirPath.C_Str()) + "\\roughness.jpg"), string(dirPath.C_Str())  + "\\roughness.jpg"});
+    textures.push_back({ loadTextureFromFile(string(dirPath.C_Str()) + "\\normal.jpg"), string(dirPath.C_Str())  + "\\normal.jpg"});
+//    }
 
     return Mesh(vertices, indices, textures);
 }

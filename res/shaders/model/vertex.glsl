@@ -15,6 +15,8 @@ out vec2 gTexCoords;
 uniform mat4 world;
 uniform mat4 transform;
 
+uniform bool instantiate;
+
 vec3 translations[100];
 int index = 0;
 float offset = 0.1f;
@@ -24,9 +26,11 @@ void createTranslations() {
         for (int x = -10; x < 10; x += 2)
         {
             vec3 translation;
-            translation.x = float(x) / 10.0f + offset;
+//            translation.x = float(x) / 10.0f + offset;
+            translation.x = 0.0;
             translation.y = 0.0;
-            translation.z = float(z) / 10.0f + offset;
+            translation.z = 0.0;
+//            translation.z = float(z) / 10.0f + offset;
             translations[index++] = translation;
         }
     }

@@ -11,7 +11,11 @@ out vec4 outColor;
 
 // //////////////////////////////////////////////////////////// Uniforms //
 uniform vec3 viewPos;
-uniform sampler2D texture0;
+uniform sampler2D texAo;
+uniform sampler2D texAlbedo;
+uniform sampler2D texMetalness;
+uniform sampler2D texRoughness;
+uniform sampler2D texNormal;
 uniform mat4 vpMatrix;
 uniform mat4 world;
 
@@ -109,7 +113,7 @@ void main() {
                 + point(lightPoint) * lightPoint.enable
                 + spot(lightSpot1) * lightSpot1.enable
                 + spot(lightSpot2) * lightSpot2.enable)
-                * texture(texture0, fTexCoords);
+                * texture(texAlbedo, fTexCoords);
 }
 
 // ///////////////////////////////////////////////////////////////////// //
