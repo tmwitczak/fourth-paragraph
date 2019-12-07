@@ -2,9 +2,9 @@
 #version 430 core
 
 // ////////////////////////////////////////////////////////////// Inputs //
-in vec2 texCoordF;
-in vec3 normal;
-in vec3 fPos;
+in vec3 fPosition;
+in vec3 fNormal;
+in vec2 fTexCoords;
 
 // ///////////////////////////////////////////////////////////// Outputs //
 out vec4 outColor;
@@ -15,49 +15,57 @@ uniform sampler2D texture0;
 uniform mat4 vpMatrix;
 uniform mat4 world;
 
-// //////////////////////////////////////////////////////////////// Main //
-void main() {
-    // Light parameters
-    vec3 ambient = vec3(0.0);
+// Lambert + Blinn-Phong
+vec3 lightDir = -normalize(world * vec4(0, -1, 1, 1)).xyz;
 
-    float diffuseFactor = 0.0;
-    vec3 diffuse = vec3(0.0);
+// Light parameters
+struct LightParameters {
+    float ambientIntensity;
+    vec3 ambientColor;
+    float diffuseIntensity;
+    vec3 diffuseColor;
+    float specularIntensity;
+    vec3 specularColor;
+    float specularShininess;
+};
 
-    float specularFactor = 0.0;
-    vec3 specular = vec3(0.0);
+uniform LightParameters test;
 
+vec4 lambertBlinnPhong(LightParameters light) {
     // Ambient
-    ambient = vec3(0.1);
+    float ambientFactor = 1.0;
+    vec3 ambient = ambientFactor
+                   * light.ambientIntensity
+                   * light.ambientColor;
 
     // Diffuse
-    vec3 l = normalize(world * vec4(80, -80, 0, 1)).xyz;//normalize(vec3(0, 100, 0) - fPos);
-    //    vec3 l = normalize((world * vec4(0, 800, 0, 1)).xyz - fPos);
-    vec3 n = -normal;
-    vec3 c = vec3(1);
-    float i = 1;
+    float diffuseFactor = clamp(dot(lightDir, fNormal), 0.0, 1.0);
+    vec3 diffuse = diffuseFactor
+                   * light.diffuseIntensity
+                   * light.diffuseColor;
 
+    // Specular
+    float specularFactor = pow(
+        clamp(
+            dot(fNormal,
+                normalize(lightDir +                        // Half
+                          normalize(viewPos - fPosition))), // View
+            0.0, 1.0),
+        light.specularShininess
+    );
+    vec3 specular = specularFactor
+                    * light.specularIntensity
+                    * light.specularColor;
 
-    diffuseFactor = dot(l, n);
+    // Final lighting
+    return vec4(ambient + diffuse + specular, 1.0);
+}
 
-    if (diffuseFactor > 0) {
-        diffuse = diffuseFactor * c * i;
-
-//        ambient = vec3(0);
-
-        //    vec3 lightDir   = l;//normalize(lightPos - FragPos);
-        vec3 v = -normalize(viewPos - fPos);
-        vec3 h = normalize(l + v);
-        //        vec3 h = normalize(reflect(l, n));
-        float shininess = 64;
-        float specularFactor = dot(n, h);
-
-        if (specularFactor > 0) {
-            specular = c * pow(specularFactor, shininess);
-        }
-    }
-
-
-    outColor = vec4(ambient + diffuse + specular, 1) * texture(texture0, texCoordF);
+// //////////////////////////////////////////////////////////////// Main //
+void main() {
+    // Final pixel color
+    outColor = lambertBlinnPhong(test)
+               * texture(texture0, fTexCoords);
 }
 
 // ///////////////////////////////////////////////////////////////////// //

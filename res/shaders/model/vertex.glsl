@@ -7,9 +7,9 @@ layout (location = 1) in vec3 vNormal;
 layout (location = 2) in vec2 vTexCoords;
 
 // ///////////////////////////////////////////////////////////// Outputs //
-out vec2 texCoordG;
+out vec3 gPosition;
 out vec3 gNormal;
-out vec3 fragPos;
+out vec2 gTexCoords;
 
 // //////////////////////////////////////////////////////////// Uniforms //
 uniform mat4 world;
@@ -35,13 +35,12 @@ void createTranslations() {
 // //////////////////////////////////////////////////////////////// Main //
 void main() {
     createTranslations();
-    gl_Position = transform * vec4(vPosition + 16 * translations[gl_InstanceID], 1.0);
-//    gl_Position = transform * vec4(vPosition, 1.0);
-    fragPos = (world * vec4(vPosition + 16 * translations[gl_InstanceID], 1.0)).xyz;
-//    fragPos = (world * vec4(vPosition, 1.0)).xyz;
-//    gNormal = normalize(world * vec4(vNormal, 1.0)).xyz + 8 * translations[gl_InstanceID];
+
+    gPosition = (world * vec4(vPosition + 16 * translations[gl_InstanceID], 1.0)).xyz;
     gNormal = normalize((world * vec4(vNormal, 1.0)).xyz);
-    texCoordG = vTexCoords;
+    gTexCoords = vTexCoords;
+
+    gl_Position = transform * vec4(vPosition + 16 * translations[gl_InstanceID], 1.0);
 }
 
 // ///////////////////////////////////////////////////////////////////// //

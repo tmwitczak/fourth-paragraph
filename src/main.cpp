@@ -56,6 +56,38 @@ T lerp(T a, T b, float alpha) {
 vec3 cameraPos(5.0f);
 mat4 vp;
 
+vec3 ImVec4ToVec3(ImVec4 a) {
+    return vec3(a.x, a.y, a.z);
+}
+
+struct LightParameters {
+    float ambientIntensity;
+    ImVec4 ambientColor;
+    float diffuseIntensity;
+    ImVec4 diffuseColor;
+    float specularIntensity;
+    ImVec4 specularColor;
+    float specularShininess;
+
+    void setShaderParameters(shared_ptr<Shader> shader) {
+        string name = "test";
+
+        shader->uniform1f(name + ".ambientIntensity", ambientIntensity);
+        shader->uniform3f(name + ".ambientColor", ImVec4ToVec3(ambientColor));
+        shader->uniform1f(name + ".diffuseIntensity", diffuseIntensity);
+        shader->uniform3f(name + ".diffuseColor", ImVec4ToVec3(diffuseColor));
+        shader->uniform1f(name + ".specularIntensity", specularIntensity);
+        shader->uniform3f(name + ".specularColor", ImVec4ToVec3(specularColor));
+        shader->uniform1f(name + ".specularShininess", specularShininess);
+    }
+};
+
+LightParameters lightDirectional = {
+        0.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
+};
+
 // /////////////////////////////////////////////////// Struct: GraphNode //
 struct GraphNode {
     mat4 transform;
@@ -77,6 +109,7 @@ struct GraphNode {
             model->shader->uniformMatrix4fv("vpMatrix",
                                             value_ptr(vp));
             model->shader->uniform3f("viewPos", cameraPos.x, cameraPos.y, cameraPos.z);
+            lightDirectional.setShaderParameters(model->shader);
 
             model->render(model->shader, overrideTexture);
         }
@@ -263,27 +296,62 @@ void setupDearImGui() {
     ImGui_ImplOpenGL3_Init(GLSL_VERSION);
 
     ImGui::StyleColorsLight();
+
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("res/fonts/montserrat.ttf", 12.0f, nullptr);
 }
 
 void prepareUserInterfaceWindow() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    ImGui::Begin("Zadanie 3");
+    ImGui::Begin("Zadanie 4", nullptr,
+            ImGuiWindowFlags_NoDecoration);
     {
-        ImGui::SliderInt("Szczegolowosc kuli",
-                         &Sphere::subdivisionLevel,
-                         Sphere::SUBDIVISION_LEVEL_MIN,
-                         Sphere::SUBDIVISION_LEVEL_MAX);
         if (ImGui::Button("Tryb siatki")) {
             wireframeMode = !wireframeMode;
         }
-        ImGui::SliderFloat("Kamera (x)", &cameraPos.x, 0.0f, 4.0f);
-        ImGui::SliderFloat("Kamera (y)", &cameraPos.y, 0.0f, 4.0f);
-        ImGui::SliderFloat("Kamera (z)", &cameraPos.z, 0.5f, 4.0f);
+
+        ImGui::BeginTabBar("Lights");
+
+        if (ImGui::BeginTabItem("Directional")) {
+            ImGui::Text("Ambient");
+            ImGui::SliderFloat("Intensity", &lightDirectional.ambientIntensity, 0.0f, 1.0f);
+            ImGui::ColorEdit3("Color", (float *) &lightDirectional.ambientColor);
+            ImGui::Separator();
+
+            ImGui::Text("Diffuse");
+            ImGui::SliderFloat("Intensity ", &lightDirectional.diffuseIntensity, 0.0f, 1.0f);
+            ImGui::ColorEdit3("Color ", (float *) &lightDirectional.diffuseColor);
+            ImGui::Separator();
+
+            ImGui::Text("Specular");
+            ImGui::SliderFloat("Intensity  ", &lightDirectional.specularIntensity, 0.0f, 1.0f);
+            ImGui::ColorEdit3("Color  ", (float *) &lightDirectional.specularColor);
+            ImGui::SliderFloat("Shininess", &lightDirectional.specularShininess, 1.0f, 128.0f);
+            ImGui::Separator();
+
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Point")) {
+            ImGui::Text("todo");
+
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Spot 1")) {
+            ImGui::Text("todo");
+
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Spot 2")) {
+            ImGui::Text("todo");
+
+            ImGui::EndTabItem();
+        }
+
+        ImGui::EndTabBar();
 
         ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
-        ImGui::SetWindowSize(ImVec2(400.0f, 150.0f));
+        ImGui::SetWindowSize(ImVec2(300.0f, WINDOW_HEIGHT));
     }
     ImGui::End();
     ImGui::Render();
@@ -308,6 +376,7 @@ void setupGLFW() {
     glfwWindowHint(GLFW_OPENGL_PROFILE,
                    GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_SAMPLES, 4);
 }
 
 void createWindow() {
@@ -485,7 +554,7 @@ void mouseCallback(GLFWwindow *window, double x, double y) {
 }
 
 void handleKeyboardInput(float const deltaTime) {
-    float const CAMERA_SPEED = 2.0f;
+    float const CAMERA_SPEED = 8.0f;
 
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
         cameraPosTarget +=
@@ -533,6 +602,8 @@ void setupOpenGL() {
     setupGLFW();
     createWindow();
     initializeOpenGLLoader();
+
+    glEnable(GL_MULTISAMPLE);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouseCallback);
