@@ -1,3 +1,6 @@
+#include <iostream>
+
+using namespace std;
 // //////////////////////////////////////////////////////////// Includes //
 #include "model.hpp"
 #include "opengl-headers.hpp"
@@ -53,32 +56,148 @@ T lerp(T a, T b, float alpha) {
     return (1.0f - alpha) * a + alpha * b;
 }
 
-vec3 cameraPos(0.0f);
+vec3 cameraPos(5.0f);
 mat4 vp;
+
+vec3 ImVec4ToVec3(ImVec4 a) {
+    return vec3(a.x, a.y, a.z);
+}
+
+ImVec4 Vec3ToImVec4(vec3 a) {
+    return {a.x, a.y, a.z, 1.0};
+}
+
+enum LightType {
+    LT_POINT,
+    LT_DIRECTIONAL,
+    LT_SPOT
+};
+
+struct LightParameters {
+    string name;
+    LightType type;
+    float enable;
+    ImVec4 direction;
+    ImVec4 position;
+    float angle;
+    float attenuationConstant;
+    float attenuationLinear;
+    float attenuationQuadratic;
+    float ambientIntensity;
+    ImVec4 ambientColor;
+    float diffuseIntensity;
+    ImVec4 diffuseColor;
+    float specularIntensity;
+    ImVec4 specularColor;
+    float specularShininess;
+
+    void setShaderParameters(shared_ptr<Shader> shader) {
+        shader->uniform1f(name + ".enable", enable);
+
+        shader->uniform3f(name + ".direction", ImVec4ToVec3(direction));
+        shader->uniform3f(name + ".position", ImVec4ToVec3(position));
+        shader->uniform1f(name + ".angle", angle);
+
+        shader->uniform1f(name + ".attenuationConstant", attenuationConstant);
+        shader->uniform1f(name + ".attenuationLinear", attenuationLinear);
+        shader->uniform1f(name + ".attenuationQuadratic", attenuationQuadratic);
+
+        shader->uniform1f(name + ".ambientIntensity", ambientIntensity);
+        shader->uniform3f(name + ".ambientColor",
+                          ImVec4ToVec3(ambientColor));
+        shader->uniform1f(name + ".diffuseIntensity", diffuseIntensity);
+        shader->uniform3f(name + ".diffuseColor",
+                          ImVec4ToVec3(diffuseColor));
+        shader->uniform1f(name + ".specularIntensity", specularIntensity);
+        shader->uniform3f(name + ".specularColor",
+                          ImVec4ToVec3(specularColor));
+        shader->uniform1f(name + ".specularShininess", specularShininess);
+    }
+};
+
+LightParameters lightDirectional = {
+        "lightDirectional",
+        LT_DIRECTIONAL,
+        0.75,
+        {1.0, -1.0, 1.0, 1.0},
+        {0.0, 0.0, 0.0, 1.0},
+        radians(0.0),
+        0.0, 0.0, 0.0,
+        0.1, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0},
+        0.5, {1.0, 1.0, 1.0, 1.0}, 32.0
+};
+LightParameters lightPoint = {
+        "lightPoint",
+        LT_POINT,
+        1.0,
+        {0.0, 0.0, 0.0, 1.0},
+        {0.0, 10.0, 0.0, 1.0},
+        radians(0.0),
+        0.0, 0.1, 0.001,
+        0.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 0.57, 0.16, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
+};
+LightParameters lightSpot1 = {
+        "lightSpot1",
+        LT_SPOT,
+        0.8,
+        {1.0, -1.0, 0.0, 1.0},
+        {-10.0, 5.0, 0.0, 1.0},
+        radians(60.0),
+        0.5, 0.025, 0.0,
+        0.35, {1.0, 0.0, 0.0, 1.0},
+        0.5, {1.0, 0.0, 0.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 128.0
+};
+LightParameters lightSpot2 = {
+        "lightSpot2",
+        LT_SPOT,
+        0.35,
+        {-1.0, -1.0, -1.0, 1.0},
+        {0.0, 10.0, 20.0, 1.0},
+        radians(45.0),
+        1.0, 0.01, 0.0,
+        0.2, {0.0, 0.75, 1.0, 1.0},
+        1.0, {0.0, 0.75, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 2.0
+};
 
 // /////////////////////////////////////////////////// Struct: GraphNode //
 struct GraphNode {
-    mat4 transform;
-    shared_ptr<Renderable> model;
+    vector<mat4> transform;
+    vector<shared_ptr<Renderable>> model;
     GLuint overrideTexture;
     vector<shared_ptr<GraphNode>> children;
 
-    GraphNode() : overrideTexture(0), model(nullptr) {}
+    GraphNode() : overrideTexture(0) {}
 
     void render(mat4 const &vp = mat4(1.0f)) {
-        mat4 renderTransform = vp * transform;
+        for (int i = 0; i < model.size(); i++) {
+            mat4 renderTransform = vp * transform[i];
 
-        if (model) {
-            model->shader->use();
-            model->shader->uniformMatrix4fv("transform",
-                                            value_ptr(renderTransform));
-            model->shader->uniformMatrix4fv("world",
-                                            value_ptr(transform));
-            model->shader->uniformMatrix4fv("vpMatrix",
-                                            value_ptr(vp));
-            model->shader->uniform3f("viewPos", cameraPos.x, cameraPos.y, cameraPos.z);
+            if (model[i]) {
+                model[i]->shader->use();
+                model[i]->shader->uniformMatrix4fv("transform",
+                                                   value_ptr(
+                                                           renderTransform));
+                model[i]->shader->uniformMatrix4fv("world",
+                                                   value_ptr(
+                                                           transform[i]));
+                model[i]->shader->uniformMatrix4fv("vpMatrix",
+                                                   value_ptr(vp));
+                model[i]->shader->uniform3f("viewPos", cameraPos.x,
+                                            cameraPos.y,
+                                            cameraPos.z);
 
-            model->render(model->shader, overrideTexture);
+                lightDirectional.setShaderParameters(model[i]->shader);
+                lightPoint.setShaderParameters(model[i]->shader);
+                lightSpot1.setShaderParameters(model[i]->shader);
+                lightSpot2.setShaderParameters(model[i]->shader);
+
+                model[i]->render(model[i]->shader, overrideTexture);
+            }
         }
 
 //        for (auto const &child : children) {
@@ -105,7 +224,7 @@ GLuint plywoodTexture = 0,
         metalTexture = 0;
 
 // ----------------------------------------------------------- Camera -- //
-vec3 cameraFront(0.0f, 0.0f, -1.0f),
+vec3 cameraFront(1.0f, 0.0f, 0.0f),
         cameraUp(0.0f, 1.0f, 0.0f);
 
 vec3 cameraPosTarget = cameraPos;
@@ -127,9 +246,10 @@ GraphNode scene;
 
 // --------------------------------------------------- Rendering mode -- //
 bool wireframeMode = false;
+bool showLightDummies = true;
 
 // ----------------------------------------------------------- Models -- //
-shared_ptr<Renderable> sphere, amplifier, guitar, orbit;
+shared_ptr<Renderable> ground, amplifier, guitar, lightbulb;
 
 // //////////////////////////////////////////////////////////// Textures //
 GLuint loadTextureFromFile(string const &filename) {
@@ -263,27 +383,88 @@ void setupDearImGui() {
     ImGui_ImplOpenGL3_Init(GLSL_VERSION);
 
     ImGui::StyleColorsLight();
+
+    ImGui::GetIO().Fonts->AddFontFromFileTTF("res/fonts/montserrat.ttf",
+                                             12.0f, nullptr);
+}
+
+void constructTabForLight(LightParameters &light) {
+    ImGui::SliderFloat("Enable", &light.enable, 0.0f, 1.0f);
+    if (light.type != LT_POINT) {
+        ImGui::SliderFloat3("Direction", (float *) &light.direction, -1.0f,
+                            1.0f);
+    }
+    if (light.type != LT_DIRECTIONAL){
+        ImGui::SliderFloat3("Position", (float *) &light.position, -100.0f,
+                            100.0f);
+    }
+    if (light.type == LT_SPOT) {
+        ImGui::SliderAngle("Angle", &light.angle, 0.0f, 90.0f);
+    }
+    ImGui::Separator();
+    if (light.type != LT_DIRECTIONAL) {
+        ImGui::Text("Attenuation");
+        ImGui::SliderFloat("Constant", &light.attenuationConstant, 0.0f, 1.0f);
+        ImGui::SliderFloat("Linear", &light.attenuationLinear, 0.0f, 1.0f);
+        ImGui::SliderFloat("Quadratic", &light.attenuationQuadratic, 0.0f, 1.0f);
+        ImGui::Separator();
+    }
+
+    ImGui::Text("Ambient");
+    ImGui::SliderFloat("Intensity", &light.ambientIntensity, 0.0f, 1.0f);
+    ImGui::ColorEdit3("Color", (float *) &light.ambientColor);
+    ImGui::Separator();
+
+    ImGui::Text("Diffuse");
+    ImGui::SliderFloat("Intensity ", &light.diffuseIntensity, 0.0f, 1.0f);
+    ImGui::ColorEdit3("Color ", (float *) &light.diffuseColor);
+    ImGui::Separator();
+
+    ImGui::Text("Specular");
+    ImGui::SliderFloat("Intensity  ", &light.specularIntensity, 0.0f,
+                       1.0f);
+    ImGui::ColorEdit3("Color  ", (float *) &light.specularColor);
+    ImGui::SliderFloat("Shininess", &light.specularShininess, 1.0f,
+                       128.0f);
+    ImGui::Separator();
+
+    ImGui::EndTabItem();
 }
 
 void prepareUserInterfaceWindow() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    ImGui::Begin("Zadanie 3");
+    ImGui::Begin("Task 4", nullptr,
+                 ImGuiWindowFlags_NoDecoration);
     {
-        ImGui::SliderInt("Szczegolowosc kuli",
-                         &Sphere::subdivisionLevel,
-                         Sphere::SUBDIVISION_LEVEL_MIN,
-                         Sphere::SUBDIVISION_LEVEL_MAX);
-        if (ImGui::Button("Tryb siatki")) {
+        if (ImGui::Button("Toggle wireframe mode")) {
             wireframeMode = !wireframeMode;
         }
-        ImGui::SliderFloat("Kamera (x)", &cameraPos.x, 0.0f, 4.0f);
-        ImGui::SliderFloat("Kamera (y)", &cameraPos.y, 0.0f, 4.0f);
-        ImGui::SliderFloat("Kamera (z)", &cameraPos.z, 0.5f, 4.0f);
+        if (ImGui::Button("Toggle light dummies")) {
+            showLightDummies = !showLightDummies;
+        }
+        ImGui::NewLine();
+
+        ImGui::BeginTabBar("Lights");
+
+        if (ImGui::BeginTabItem("Directional")) {
+            constructTabForLight(lightDirectional);
+        }
+        if (ImGui::BeginTabItem("Point")) {
+            constructTabForLight(lightPoint);
+        }
+        if (ImGui::BeginTabItem("Spot 1")) {
+            constructTabForLight(lightSpot1);
+        }
+        if (ImGui::BeginTabItem("Spot 2")) {
+            constructTabForLight(lightSpot2);
+        }
+
+        ImGui::EndTabBar();
 
         ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
-        ImGui::SetWindowSize(ImVec2(400.0f, 150.0f));
+        ImGui::SetWindowSize(ImVec2(300.0f, WINDOW_HEIGHT));
     }
     ImGui::End();
     ImGui::Render();
@@ -308,6 +489,7 @@ void setupGLFW() {
     glfwWindowHint(GLFW_OPENGL_PROFILE,
                    GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_SAMPLES, 4);
 }
 
 void createWindow() {
@@ -343,117 +525,32 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
                      float const displayHeight) {
     static mat4 const identity = mat4(1.0f);
     static float angle = 0.0f;
-    angle += glm::radians(45.0f) * deltaTime;
+    angle += glm::radians(30.0f) * deltaTime;
+
+    lightPoint.position = Vec3ToImVec4(
+            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
+            glm::vec4(25, 5, 0, 1));
 
     // Scene elements
-//    shared_ptr<GraphNode> gibson = make_shared<GraphNode>();
-//    gibson->transform =
-//            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-//            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f)) *
-//            glm::rotate(identity, -angle, vec3(0.5f, 0.25f, 0.0f)) *
-//            glm::scale(identity, vec3(0.1f));
-//    gibson->model = guitar;
-//    gibson->overrideTexture = plywoodTexture;
-//
-//    shared_ptr<GraphNode> ball = make_shared<GraphNode>();
-//    ball->transform =
-//            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-//            glm::translate(identity, vec3(1.0f, 0.0f, 0.0f)) *
-//            glm::rotate(identity, 2.0f * angle, vec3(0.0f, 0.0f, 1.0f)) *
-//            glm::scale(identity, vec3(0.1f));
-//    ball->model = sphere;
-//    ball->overrideTexture = plywoodTexture;
-//
-//    shared_ptr<GraphNode> secondOrbit = make_shared<GraphNode>();
-//    secondOrbit->transform =
-//            glm::rotate(identity, glm::radians(45.0f),
-//                        vec3(1.0f, 0.0f, 0.0f)) *
-//            glm::scale(identity, vec3(0.5f));
-//    secondOrbit->model = orbit;
-//    secondOrbit->overrideTexture = plywoodTexture;
-//    secondOrbit->children.clear();
-//    secondOrbit->children.push_back(ball);
-//    secondOrbit->children.push_back(gibson);
+    scene.transform.clear();
+    scene.model.clear();
 
-//    shared_ptr<GraphNode> amp = make_shared<GraphNode>();
-//    amp->transform =
-//            glm::rotate(identity, 1.5f * angle, vec3(1.0f, 0.0f, 1.0f)) *
-//            glm::scale(identity, vec3(0.004f));
-//    amp->model = amplifier;
-//    amp->overrideTexture = metalTexture;
+    scene.transform.push_back(identity);
+    scene.model.push_back(ground);
 
-//    shared_ptr<GraphNode> otherSystem = make_shared<GraphNode>();
-//    otherSystem->transform =
-//            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-//            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f));
-//    otherSystem->children.clear();
-//    otherSystem->children.push_back(secondOrbit);
-//    otherSystem->children.push_back(amp);
+//    scene.transform.push_back(identity);
+//    scene.model.push_back(amplifier);
 //
-//    shared_ptr<GraphNode> jupiter = make_shared<GraphNode>();
-//    jupiter->transform =
-//            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-//            glm::translate(identity, vec3(1.0f, 0.0f, 0.0f)) *
-//            glm::rotate(identity, -angle, vec3(0.0f, 1.0f, 1.0f)) *
-//            glm::scale(identity, vec3(0.3f));
-//    jupiter->model = sphere;
-//    jupiter->overrideTexture = metalTexture;
+//    if (showLightDummies) {
+//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightPoint.position)));
+//        scene.model.push_back(lightbulb);
 //
-//    shared_ptr<GraphNode> firstOrbit = make_shared<GraphNode>();
-//    firstOrbit->transform =
-//            glm::rotate(identity, glm::radians(90.0f),
-//                        vec3(1.0f, 0.0f, 0.0f)) *
-//            glm::scale(identity, vec3(10.0f));
-//    firstOrbit->model = orbit;
-//    firstOrbit->overrideTexture = metalTexture;
-//    firstOrbit->children.clear();
-//    firstOrbit->children.push_back(jupiter);
-//    firstOrbit->children.push_back(otherSystem);
+//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot1.position)));
+//        scene.model.push_back(lightbulb);
 //
-//    shared_ptr<GraphNode> lonelyBlue = make_shared<GraphNode>();
-    scene.transform =
-            glm::translate(identity, vec3(1.25f, 0.5f, -0.5f)) *
-            glm::scale(identity, vec3(0.0125f));
-    scene.model = amplifier;
-//
-//    shared_ptr<GraphNode> ball2 = make_shared<GraphNode>();
-//    ball2->transform =
-//            glm::translate(identity, vec3(0.75f, 0.0f, 0.75f)) *
-//            glm::rotate(identity, glm::radians(90.0f),
-//                        vec3(1.0f, 0.0f, 0.0f)) *
-//            glm::scale(identity, vec3(0.6f));
-//    ball2->model = sphere;
-//
-//    shared_ptr<GraphNode> notLonelyBlue = make_shared<GraphNode>();
-//    notLonelyBlue->transform =
-//            glm::translate(identity, vec3(-1.0f, 0.0f, 0.0f)) *
-//            glm::rotate(identity, glm::radians(90.0f),
-//                        vec3(1.0f, 0.0f, 0.0f)) *
-//            glm::scale(identity, vec3(0.1f));
-//    notLonelyBlue->model = guitar;
-//    notLonelyBlue->children.clear();
-//    notLonelyBlue->children.push_back(firstOrbit);
-
-    // Scene
-//    mat4 const projection = perspective(radians(60.0f),
-//                                        ((float) displayWidth) /
-//                                        ((float) displayHeight),
-//                                        0.01f, 100.0f);
-//
-//    cameraPos = lerp(cameraPos, cameraPosTarget, 0.1f);
-//    cameraFront = lerp(cameraFront, cameraFrontTarget, 0.1f);
-//
-//    mat4 const view = lookAt(cameraPos,
-//                             cameraPos + cameraFront,
-//                             cameraUp);
-//
-//    vp = projection * view;
-
-//    scene.transform = projection * view;
-    scene.children.clear();
-//    scene.children.push_back(ball2);
-//    scene.children.push_back(lonelyBlue);
-//    scene.children.push_back(notLonelyBlue);
+//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot2.position)));
+//        scene.model.push_back(lightbulb);
+//    }
 }
 
 void mouseCallback(GLFWwindow *window, double x, double y) {
@@ -465,8 +562,10 @@ void mouseCallback(GLFWwindow *window, double x, double y) {
     }
 
     // Calculate mouse offset and update its position
-    GLfloat offsetX = mouseSensitivityFactor * (x - mousePositionLastX);
-    GLfloat offsetY = mouseSensitivityFactor * (-(y - mousePositionLastY));
+    GLfloat offsetX =
+            mouseSensitivityFactor * (x - mousePositionLastX);
+    GLfloat offsetY =
+            mouseSensitivityFactor * (-(y - mousePositionLastY));
 
     mousePositionLastX = x;
     mousePositionLastY = y;
@@ -484,7 +583,7 @@ void mouseCallback(GLFWwindow *window, double x, double y) {
 }
 
 void handleKeyboardInput(float const deltaTime) {
-    float const CAMERA_SPEED = 2.0f;
+    float const CAMERA_SPEED = 8.0f;
 
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
         cameraPosTarget +=
@@ -525,36 +624,37 @@ void handleKeyboardInput(float const deltaTime) {
     }
 }
 
+
 void setupOpenGL() {
     setupGLFW();
     createWindow();
     initializeOpenGLLoader();
 
+    glEnable(GL_MULTISAMPLE);
+
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouseCallback);
 
     plywoodTexture = loadTextureFromFile(
-            "res/textures/plywood.jpg");
+            "res/textures/light.jpg");
     metalTexture = loadTextureFromFile("res/textures/metal.jpg");
 
-    amplifier = make_shared<Model>("res/models/orange-th30.obj");
-//    guitar = make_shared<Model>("res/models/gibson-es335.obj");
-    orbit = make_shared<Model>("res/models/orbit.obj");
+    ground = make_shared<Model>("res/models/ground.obj");
+//    amplifier = make_shared<Model>("res/models/teapot.obj");
+//    lightbulb = make_shared<Model>("res/models/light.obj");
 
     modelShader = make_shared<Shader>("res/shaders/model/vertex.glsl",
                                       "res/shaders/model/geometry.glsl",
                                       "res/shaders/model/fragment.glsl");
 
-    sphereShader = make_shared<Shader>("res/shaders/sphere/vertex.glsl",
-                                       "res/shaders/sphere/geometry.glsl",
-                                       "res/shaders/sphere/fragment.glsl");
+    sphereShader = make_shared<Shader>(
+            "res/shaders/sphere/vertex.glsl",
+            "res/shaders/sphere/geometry.glsl",
+            "res/shaders/sphere/fragment.glsl");
 
-    sphere = make_shared<Sphere>();
-
-    amplifier->shader = modelShader;
-//    guitar->shader = modelShader;
-    orbit->shader = modelShader;
-    sphere->shader = sphereShader;
+    ground->shader = modelShader;
+//    amplifier->shader = modelShader;
+//    lightbulb->shader = sphereShader;
 
     setupDearImGui();
 }
@@ -565,12 +665,10 @@ void cleanUp() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    sphere = nullptr;
-
     sphereShader = nullptr;
     modelShader = nullptr;
 
-    orbit = nullptr;
+    lightbulb = nullptr;
     guitar = nullptr;
     amplifier = nullptr;
 
@@ -608,22 +706,22 @@ void performMainLoop() {
                       wireframeMode ? GL_LINE : GL_FILL);
 
         // --------------------------------------------- Render scene -- //
-        setupSceneGraph(deltaTime.count(), displayWidth, displayHeight);
+        cameraPos = lerp(cameraPos, cameraPosTarget, 0.1f);
+        cameraFront = lerp(cameraFront, cameraFrontTarget, 0.1f);
+
         mat4 const projection = perspective(radians(60.0f),
                                             ((float) displayWidth) /
                                             ((float) displayHeight),
                                             0.01f, 100.0f);
-
-        cameraPos = lerp(cameraPos, cameraPosTarget, 0.1f);
-        cameraFront = lerp(cameraFront, cameraFrontTarget, 0.1f);
-
         mat4 const view = lookAt(cameraPos,
                                  cameraPos + cameraFront,
                                  cameraUp);
-
         vp = projection * view;
 
+        setupSceneGraph(deltaTime.count(), displayWidth,
+                        displayHeight);
         scene.render(vp);
+
 
         // ------------------------------------------------------- UI -- //
         prepareUserInterfaceWindow();

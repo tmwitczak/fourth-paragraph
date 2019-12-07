@@ -19,12 +19,17 @@ Mesh::Mesh(vector<Vertex> const &vertices,
 void Mesh::render(shared_ptr<Shader> shader,
                   GLuint const overrideTexture) const {
     shader->use();
-    shader->uniform1i("texture0", 0);
+    shader->uniform1i("texAo", 0);
+    shader->uniform1i("texAlbedo", 1);
+    shader->uniform1i("texMetalness", 2);
+    shader->uniform1i("texRoughness", 3);
+    shader->uniform1i("texNormal", 4);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, (overrideTexture != 0)
-                                 ? overrideTexture
-                                 : textures[0].id);
+    for (int i = 0; i < textures.size(); ++i) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, textures[i].id);
+    }
+
     glBindVertexArray(vao);
         glDrawElementsInstanced(GL_TRIANGLES, indices.size(),
                        GL_UNSIGNED_INT, nullptr, 100);
@@ -45,10 +50,13 @@ void Mesh::setupMesh() {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
 
         glEnableVertexAttribArray(0);	
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)nullptr);
 
         glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(glm::vec3)));
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(glm::vec3)));
+
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(2 * sizeof(glm::vec3)));
     }
     glBindVertexArray(0);
 }

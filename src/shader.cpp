@@ -145,7 +145,19 @@ void Shader::uniform3f(string const &name,
         a, b, c);
 }
 
+void Shader::uniform3f(std::string const &name, glm::vec3 const &abc) {
+    glUniform3f(
+            glGetUniformLocation(shader, name.c_str()),
+            abc.x, abc.y, abc.z);
+}
+
+
 void Shader::uniform1i(string const &name, int const a) {
     glUniform1i(
         glGetUniformLocation(shader, name.c_str()), a);
+}
+
+void Shader::uniform1f(std::string const &name, float const a) {
+    glUniform1f(
+            glGetUniformLocation(shader, name.c_str()), a);
 }
