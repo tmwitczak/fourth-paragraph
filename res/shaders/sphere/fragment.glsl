@@ -19,7 +19,7 @@ uniform mat4 world;
 // //////////////////////////////////////////////////////////////// Main //
 void main() {
     // Final pixel color
-    outColor = vec4(255, 147, 41, 1) / 255 + texture(texture0, fTexCoords);
+    outColor = (vec4(255, 147, 41, 1) / 255 + vec4(1.5)) * texture(texture0, fTexCoords);
 }
 
 // ///////////////////////////////////////////////////////////////////// //

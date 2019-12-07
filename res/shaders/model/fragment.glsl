@@ -25,6 +25,10 @@ struct LightParameters {
     vec3 position;
     float angle;
 
+    float attenuationConstant;
+    float attenuationLinear;
+    float attenuationQuadratic;
+
     float ambientIntensity;
     vec3 ambientColor;
     float diffuseIntensity;
@@ -71,13 +75,20 @@ vec4 lambertBlinnPhong(LightParameters light,
     return factor * vec4(ambient + diffuse + specular, 1.0);
 }
 
+float attenuate(LightParameters light, float distance) {
+    return 1.0 / (light.attenuationConstant
+                    + light.attenuationLinear * distance
+                    + light.attenuationQuadratic * pow(distance, 2));
+}
+
 vec4 directional(LightParameters light) {
     return lambertBlinnPhong(light, -normalize(light.direction), 1.0);
 }
 
 vec4 point(LightParameters light) {
     vec3 lightDir = normalize(light.position - fPosition);
-    return lambertBlinnPhong(light, lightDir, 1.0);
+    return lambertBlinnPhong(light, lightDir,
+        attenuate(light, length(light.position - fPosition)));
 }
 
 vec4 spot(LightParameters light) {
@@ -86,7 +97,9 @@ vec4 spot(LightParameters light) {
     if (spotCosAngle < cos(light.angle)) {
         return vec4(0);
     }
-    return lambertBlinnPhong(light, lightDir, (spotCosAngle - cos(light.angle)) / (1.0 - cos(light.angle)));
+    return lambertBlinnPhong(light, lightDir,
+        (spotCosAngle - cos(light.angle)) / (1.0 - cos(light.angle))
+         * attenuate(light, length(light.position - fPosition)));
 }
 
 // //////////////////////////////////////////////////////////////// Main //

@@ -80,6 +80,9 @@ struct LightParameters {
     ImVec4 direction;
     ImVec4 position;
     float angle;
+    float attenuationConstant;
+    float attenuationLinear;
+    float attenuationQuadratic;
     float ambientIntensity;
     ImVec4 ambientColor;
     float diffuseIntensity;
@@ -94,6 +97,10 @@ struct LightParameters {
         shader->uniform3f(name + ".direction", ImVec4ToVec3(direction));
         shader->uniform3f(name + ".position", ImVec4ToVec3(position));
         shader->uniform1f(name + ".angle", angle);
+
+        shader->uniform1f(name + ".attenuationConstant", attenuationConstant);
+        shader->uniform1f(name + ".attenuationLinear", attenuationLinear);
+        shader->uniform1f(name + ".attenuationQuadratic", attenuationQuadratic);
 
         shader->uniform1f(name + ".ambientIntensity", ambientIntensity);
         shader->uniform3f(name + ".ambientColor",
@@ -111,13 +118,14 @@ struct LightParameters {
 LightParameters lightDirectional = {
         "lightDirectional",
         LT_DIRECTIONAL,
-        1.0,
-        {0.0, -1.0, 0.0, 1.0},
+        0.75,
+        {1.0, -1.0, 1.0, 1.0},
         {0.0, 0.0, 0.0, 1.0},
         radians(0.0),
-        0.0, {1.0, 1.0, 1.0, 1.0},
+        0.0, 0.0, 0.0,
+        0.1, {1.0, 1.0, 1.0, 1.0},
         1.0, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
+        0.5, {1.0, 1.0, 1.0, 1.0}, 32.0
 };
 LightParameters lightPoint = {
         "lightPoint",
@@ -126,31 +134,34 @@ LightParameters lightPoint = {
         {0.0, 0.0, 0.0, 1.0},
         {0.0, 10.0, 0.0, 1.0},
         radians(0.0),
+        0.0, 0.1, 0.001,
         0.0, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 0.57, 0.16, 1.0},
         1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
 };
 LightParameters lightSpot1 = {
         "lightSpot1",
         LT_SPOT,
-        1.0,
-        {0.0, -1.0, 0.0, 1.0},
-        {0.0, 5.0, 0.0, 1.0},
-        radians(30.0),
-        0.0, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
+        0.8,
+        {1.0, -1.0, 0.0, 1.0},
+        {-10.0, 5.0, 0.0, 1.0},
+        radians(60.0),
+        0.5, 0.025, 0.0,
+        0.35, {1.0, 0.0, 0.0, 1.0},
+        0.5, {1.0, 0.0, 0.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 128.0
 };
 LightParameters lightSpot2 = {
         "lightSpot2",
         LT_SPOT,
-        1.0,
-        {0.0, -1.0, 0.0, 1.0},
-        {0.0, 10.0, 0.0, 1.0},
+        0.35,
+        {-1.0, -1.0, -1.0, 1.0},
+        {0.0, 10.0, 20.0, 1.0},
         radians(45.0),
-        0.0, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
+        1.0, 0.01, 0.0,
+        0.2, {0.0, 0.75, 1.0, 1.0},
+        1.0, {0.0, 0.75, 1.0, 1.0},
+        1.0, {1.0, 1.0, 1.0, 1.0}, 2.0
 };
 
 // /////////////////////////////////////////////////// Struct: GraphNode //
@@ -235,6 +246,7 @@ GraphNode scene;
 
 // --------------------------------------------------- Rendering mode -- //
 bool wireframeMode = false;
+bool showLightDummies = true;
 
 // ----------------------------------------------------------- Models -- //
 shared_ptr<Renderable> sphere, amplifier, guitar, lightbulb;
@@ -381,14 +393,22 @@ void constructTabForLight(LightParameters &light) {
     if (light.type != LT_POINT) {
         ImGui::SliderFloat3("Direction", (float *) &light.direction, -1.0f,
                             1.0f);
-    } else {
-        ImGui::SliderFloat3("Position", (float *) &light.position, -10.0f,
-                            10.0f);
+    }
+    if (light.type != LT_DIRECTIONAL){
+        ImGui::SliderFloat3("Position", (float *) &light.position, -100.0f,
+                            100.0f);
     }
     if (light.type == LT_SPOT) {
         ImGui::SliderAngle("Angle", &light.angle, 0.0f, 90.0f);
     }
     ImGui::Separator();
+    if (light.type != LT_DIRECTIONAL) {
+        ImGui::Text("Attenuation");
+        ImGui::SliderFloat("Constant", &light.attenuationConstant, 0.0f, 1.0f);
+        ImGui::SliderFloat("Linear", &light.attenuationLinear, 0.0f, 1.0f);
+        ImGui::SliderFloat("Quadratic", &light.attenuationQuadratic, 0.0f, 1.0f);
+        ImGui::Separator();
+    }
 
     ImGui::Text("Ambient");
     ImGui::SliderFloat("Intensity", &light.ambientIntensity, 0.0f, 1.0f);
@@ -415,12 +435,16 @@ void prepareUserInterfaceWindow() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    ImGui::Begin("Zadanie 4", nullptr,
+    ImGui::Begin("Task 4", nullptr,
                  ImGuiWindowFlags_NoDecoration);
     {
-        if (ImGui::Button("Tryb siatki")) {
+        if (ImGui::Button("Toggle wireframe mode")) {
             wireframeMode = !wireframeMode;
         }
+        if (ImGui::Button("Toggle light dummies")) {
+            showLightDummies = !showLightDummies;
+        }
+        ImGui::NewLine();
 
         ImGui::BeginTabBar("Lights");
 
@@ -501,7 +525,7 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
                      float const displayHeight) {
     static mat4 const identity = mat4(1.0f);
     static float angle = 0.0f;
-    angle += glm::radians(60.0f) * deltaTime;
+    angle += glm::radians(30.0f) * deltaTime;
 
     lightPoint.position = Vec3ToImVec4(
             glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
@@ -514,9 +538,16 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
     scene.transform.push_back(identity);
     scene.model.push_back(amplifier);
 
-    scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(
-            lightPoint.position)));
-    scene.model.push_back(lightbulb);
+    if (showLightDummies) {
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightPoint.position)));
+        scene.model.push_back(lightbulb);
+
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot1.position)));
+        scene.model.push_back(lightbulb);
+
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot2.position)));
+        scene.model.push_back(lightbulb);
+    }
 }
 
 void mouseCallback(GLFWwindow *window, double x, double y) {
@@ -696,7 +727,6 @@ void performMainLoop() {
                         displayHeight);
         scene.render(vp);
 
-        //Lights
 
         // ------------------------------------------------------- UI -- //
         prepareUserInterfaceWindow();
