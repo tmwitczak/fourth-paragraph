@@ -14,6 +14,7 @@ struct Vertex {
     glm::vec3 position;
     glm::vec3 normal;
     glm::vec2 texCoords;
+    glm::vec3 tangent;
 };
 
 // ///////////////////////////////////////////////////// Struct: Texture //
@@ -32,7 +33,7 @@ public:
 
     ~Mesh();
 
-    void render(std::shared_ptr<Shader> shader,
+    void render(std::shared_ptr<Shader> shader, int instances = 1,
                 GLuint const overrideTexture = 0) const;
 
 public:

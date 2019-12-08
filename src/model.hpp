@@ -19,15 +19,13 @@ private:
 public:
     Model(std::string const &path);
 
-    void render(std::shared_ptr<Shader> shader,
+    void render(std::shared_ptr<Shader> shader, int instances = 1,
                 GLuint const overrideTexture = 0) const;
     
 private:
     void loadModel(std::string const &path);
     void processNode(aiNode *node, const aiScene *scene);
     Mesh processMesh(aiMesh *mesh, const aiScene *scene);
-    std::vector<Texture> loadMaterialTextures(aiMaterial *mat,
-            aiTextureType type, std::string typeName);
 };
 
 // ///////////////////////////////////////////////////////////////////// //

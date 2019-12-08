@@ -12,4 +12,4 @@ newmtl 01___Default
 	Kd 0.588235 0.588235 0.588235
 	Ks 0.828000 0.828000 0.828000
 	Ke 0.000000 0.000000 0.000000
-	map_Kd res\textures\metal.jpg
+	map_Ka res\textures\wood3
