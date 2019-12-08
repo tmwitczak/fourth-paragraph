@@ -60,6 +60,7 @@ vec3 cameraPos(5.0f);
 mat4 vp;
 
 bool pbrEnabled = true;
+bool quitProgram = false;
 
 vec3 ImVec4ToVec3(ImVec4 a) {
     return vec3(a.x, a.y, a.z);
@@ -122,13 +123,13 @@ struct LightParameters {
 LightParameters lightDirectional = {
         "lightDirectional",
         LT_DIRECTIONAL,
-        0.75,
-        {1.0, -1.0, 1.0, 1.0},
+        0.5,
+        {1.0, -0.1, 0.3, 1.0},
         {0.0, 0.0, 0.0, 1.0},
         radians(0.0),
         0.0, 0.0, 0.0,
         0.1, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0},
+        1.0, {1.0, 0.82, 0.63, 1.0},
         0.5, {1.0, 1.0, 1.0, 1.0}, 32.0
 };
 LightParameters lightPoint = {
@@ -138,7 +139,7 @@ LightParameters lightPoint = {
         {0.0, 0.0, 0.0, 1.0},
         {0.0, 10.0, 0.0, 1.0},
         radians(0.0),
-        0.0, 0.1, 0.001,
+        0.0, 0.05, 0.01,
         0.0, {1.0, 1.0, 1.0, 1.0},
         1.0, {1.0, 0.57, 0.16, 1.0},
         1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
@@ -146,11 +147,11 @@ LightParameters lightPoint = {
 LightParameters lightSpot1 = {
         "lightSpot1",
         LT_SPOT,
-        0.8,
+        1.0,
         {1.0, -1.0, 0.0, 1.0},
         {-10.0, 5.0, 0.0, 1.0},
         radians(60.0),
-        0.5, 0.025, 0.0,
+        0.0, 0.025, 0.005,
         0.35, {1.0, 0.0, 0.0, 1.0},
         0.5, {1.0, 0.0, 0.0, 1.0},
         1.0, {1.0, 1.0, 1.0, 1.0}, 128.0
@@ -158,13 +159,13 @@ LightParameters lightSpot1 = {
 LightParameters lightSpot2 = {
         "lightSpot2",
         LT_SPOT,
-        0.35,
+        1.0,
         {-1.0, -1.0, -1.0, 1.0},
-        {0.0, 10.0, 20.0, 1.0},
-        radians(45.0),
-        1.0, 0.01, 0.0,
-        0.2, {0.0, 0.75, 1.0, 1.0},
-        1.0, {0.0, 0.75, 1.0, 1.0},
+        {0.0, 15.0, 25.0, 1.0},
+        radians(20.0),
+        0.0, 0.005, 0.0,
+        0.2, {0.3, 0.4, 1.0, 1.0},
+        1.0, {0.3, 0.4, 1.0, 1.0},
         1.0, {1.0, 1.0, 1.0, 1.0}, 2.0
 };
 
@@ -403,11 +404,15 @@ void constructTabForLight(LightParameters &light) {
                             1.0f);
     }
     if (light.type != LT_DIRECTIONAL){
-        ImGui::SliderFloat3("Position", (float *) &light.position, -100.0f,
-                            100.0f);
+        ImGui::SliderFloat3("Position", (float *) &light.position, -25.0f,
+                            25.0f);
     }
     if (light.type == LT_SPOT) {
         ImGui::SliderAngle("Angle", &light.angle, 0.0f, 90.0f);
+    }
+
+    if (pbrEnabled) {
+        ImGui::ColorEdit3("Color ", (float *) &light.diffuseColor);
     }
 //    ImGui::Separator();
     ImGui::NewLine();
@@ -420,26 +425,30 @@ void constructTabForLight(LightParameters &light) {
         ImGui::NewLine();
     }
 
-    ImGui::Text("Ambient");
-    ImGui::SliderFloat("Intensity", &light.ambientIntensity, 0.0f, 1.0f);
-    ImGui::ColorEdit3("Color", (float *) &light.ambientColor);
+    if (!pbrEnabled) {
+        ImGui::Text("Ambient");
+        ImGui::SliderFloat("Intensity", &light.ambientIntensity, 0.0f,
+                           1.0f);
+        ImGui::ColorEdit3("Color", (float *) &light.ambientColor);
 //    ImGui::Separator();
-    ImGui::NewLine();
+        ImGui::NewLine();
 
-    ImGui::Text("Diffuse");
-    ImGui::SliderFloat("Intensity ", &light.diffuseIntensity, 0.0f, 1.0f);
-    ImGui::ColorEdit3("Color ", (float *) &light.diffuseColor);
+        ImGui::Text("Diffuse");
+        ImGui::SliderFloat("Intensity ", &light.diffuseIntensity, 0.0f,
+                           1.0f);
+        ImGui::ColorEdit3("Color ", (float *) &light.diffuseColor);
 //    ImGui::Separator();
-    ImGui::NewLine();
+        ImGui::NewLine();
 
-    ImGui::Text("Specular");
-    ImGui::SliderFloat("Intensity  ", &light.specularIntensity, 0.0f,
-                       1.0f);
-    ImGui::ColorEdit3("Color  ", (float *) &light.specularColor);
-    ImGui::SliderFloat("Shininess", &light.specularShininess, 1.0f,
-                       128.0f);
+        ImGui::Text("Specular");
+        ImGui::SliderFloat("Intensity  ", &light.specularIntensity, 0.0f,
+                           1.0f);
+        ImGui::ColorEdit3("Color  ", (float *) &light.specularColor);
+        ImGui::SliderFloat("Shininess", &light.specularShininess, 1.0f,
+                           128.0f);
 //    ImGui::Separator();
-    ImGui::NewLine();
+        ImGui::NewLine();
+    }
 
     ImGui::EndTabItem();
 }
@@ -661,6 +670,10 @@ void handleKeyboardInput(float const deltaTime) {
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
         spacePressed = false;
     }
+
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        quitProgram = true;
+    }
 }
 
 
@@ -721,7 +734,7 @@ void cleanUp() {
 void performMainLoop() {
     auto previousStartTime = sysclock::now();
 
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window) && !quitProgram) {
         auto const startTime = sysclock::now();
         sec const deltaTime = startTime - previousStartTime;
         previousStartTime = startTime;
