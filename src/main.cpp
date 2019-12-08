@@ -59,6 +59,8 @@ T lerp(T a, T b, float alpha) {
 vec3 cameraPos(5.0f);
 mat4 vp;
 
+bool pbrEnabled = true;
+
 vec3 ImVec4ToVec3(ImVec4 a) {
     return vec3(a.x, a.y, a.z);
 }
@@ -92,6 +94,8 @@ struct LightParameters {
     float specularShininess;
 
     void setShaderParameters(shared_ptr<Shader> shader) {
+        shader->uniform1i("pbrEnabled", (int)pbrEnabled);
+
         shader->uniform1f(name + ".enable", enable);
 
         shader->uniform3f(name + ".direction", ImVec4ToVec3(direction));
@@ -168,6 +172,8 @@ LightParameters lightSpot2 = {
 struct GraphNode {
     vector<mat4> transform;
     vector<shared_ptr<Renderable>> model;
+    vector<int> instances;
+    vector<vec3> translate;
     GLuint overrideTexture;
     vector<shared_ptr<GraphNode>> children;
 
@@ -190,13 +196,14 @@ struct GraphNode {
                 model[i]->shader->uniform3f("viewPos", cameraPos.x,
                                             cameraPos.y,
                                             cameraPos.z);
+                model[i]->shader->uniform3f("translate", translate[i]);
 
                 lightDirectional.setShaderParameters(model[i]->shader);
                 lightPoint.setShaderParameters(model[i]->shader);
                 lightSpot1.setShaderParameters(model[i]->shader);
                 lightSpot2.setShaderParameters(model[i]->shader);
 
-                model[i]->render(model[i]->shader, overrideTexture);
+                model[i]->render(model[i]->shader, instances[i], overrideTexture);
             }
         }
 
@@ -249,7 +256,7 @@ bool wireframeMode = false;
 bool showLightDummies = true;
 
 // ----------------------------------------------------------- Models -- //
-shared_ptr<Renderable> ground, amplifier, guitar, lightbulb;
+shared_ptr<Renderable> ground, amplifier, weird, lightbulb;
 
 // //////////////////////////////////////////////////////////// Textures //
 GLuint loadTextureFromFile(string const &filename) {
@@ -389,6 +396,7 @@ void setupDearImGui() {
 }
 
 void constructTabForLight(LightParameters &light) {
+    ImGui::NewLine();
     ImGui::SliderFloat("Enable", &light.enable, 0.0f, 1.0f);
     if (light.type != LT_POINT) {
         ImGui::SliderFloat3("Direction", (float *) &light.direction, -1.0f,
@@ -401,24 +409,28 @@ void constructTabForLight(LightParameters &light) {
     if (light.type == LT_SPOT) {
         ImGui::SliderAngle("Angle", &light.angle, 0.0f, 90.0f);
     }
-    ImGui::Separator();
+//    ImGui::Separator();
+    ImGui::NewLine();
     if (light.type != LT_DIRECTIONAL) {
         ImGui::Text("Attenuation");
         ImGui::SliderFloat("Constant", &light.attenuationConstant, 0.0f, 1.0f);
         ImGui::SliderFloat("Linear", &light.attenuationLinear, 0.0f, 1.0f);
         ImGui::SliderFloat("Quadratic", &light.attenuationQuadratic, 0.0f, 1.0f);
-        ImGui::Separator();
+//        ImGui::Separator();
+        ImGui::NewLine();
     }
 
     ImGui::Text("Ambient");
     ImGui::SliderFloat("Intensity", &light.ambientIntensity, 0.0f, 1.0f);
     ImGui::ColorEdit3("Color", (float *) &light.ambientColor);
-    ImGui::Separator();
+//    ImGui::Separator();
+    ImGui::NewLine();
 
     ImGui::Text("Diffuse");
     ImGui::SliderFloat("Intensity ", &light.diffuseIntensity, 0.0f, 1.0f);
     ImGui::ColorEdit3("Color ", (float *) &light.diffuseColor);
-    ImGui::Separator();
+//    ImGui::Separator();
+    ImGui::NewLine();
 
     ImGui::Text("Specular");
     ImGui::SliderFloat("Intensity  ", &light.specularIntensity, 0.0f,
@@ -426,7 +438,8 @@ void constructTabForLight(LightParameters &light) {
     ImGui::ColorEdit3("Color  ", (float *) &light.specularColor);
     ImGui::SliderFloat("Shininess", &light.specularShininess, 1.0f,
                        128.0f);
-    ImGui::Separator();
+//    ImGui::Separator();
+    ImGui::NewLine();
 
     ImGui::EndTabItem();
 }
@@ -436,15 +449,24 @@ void prepareUserInterfaceWindow() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     ImGui::Begin("Task 4", nullptr,
-                 ImGuiWindowFlags_NoDecoration);
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize);
     {
-        if (ImGui::Button("Toggle wireframe mode")) {
-            wireframeMode = !wireframeMode;
+        ImGui::Text(pbrEnabled ? "Physical Based Rendering" : "Lambert+Blinn-Phong");
+        ImGui::Separator();
+        ImGui::NewLine();
+
+        if (ImGui::Button("Toggle PBR/LBP lighting")) {
+            pbrEnabled = !pbrEnabled;
         }
         if (ImGui::Button("Toggle light dummies")) {
             showLightDummies = !showLightDummies;
         }
+        if (ImGui::Button("Toggle wireframe mode")) {
+            wireframeMode = !wireframeMode;
+        }
         ImGui::NewLine();
+        ImGui::Separator();
+//        ImGui::NewLine();
 
         ImGui::BeginTabBar("Lights");
 
@@ -464,7 +486,7 @@ void prepareUserInterfaceWindow() {
         ImGui::EndTabBar();
 
         ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
-        ImGui::SetWindowSize(ImVec2(300.0f, WINDOW_HEIGHT));
+//        ImGui::SetWindowSize(ImVec2(300.0f, WINDOW_HEIGHT / 1.25f));
     }
     ImGui::End();
     ImGui::Render();
@@ -534,23 +556,40 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
     // Scene elements
     scene.transform.clear();
     scene.model.clear();
+    scene.instances.clear();
+    scene.translate.clear();
 
     scene.transform.push_back(identity);
     scene.model.push_back(ground);
+    scene.instances.push_back(1);
+    scene.translate.push_back(vec3(0));
 
-//    scene.transform.push_back(identity);
-//    scene.model.push_back(amplifier);
-//
-//    if (showLightDummies) {
-//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightPoint.position)));
-//        scene.model.push_back(lightbulb);
-//
-//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot1.position)));
-//        scene.model.push_back(lightbulb);
-//
-//        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot2.position)));
-//        scene.model.push_back(lightbulb);
-//    }
+    scene.transform.push_back(identity);
+    scene.model.push_back(weird);
+    scene.instances.push_back(25);
+    scene.translate.push_back(vec3(2.5, 0, 2.5));
+
+    scene.transform.push_back(identity);
+    scene.model.push_back(amplifier);
+    scene.instances.push_back(25);
+    scene.translate.push_back(vec3(0));
+
+    if (showLightDummies) {
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightPoint.position)));
+        scene.model.push_back(lightbulb);
+        scene.instances.push_back(1);
+        scene.translate.push_back(vec3(0));
+
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot1.position)));
+        scene.model.push_back(lightbulb);
+        scene.instances.push_back(1);
+        scene.translate.push_back(vec3(0));
+
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot2.position)));
+        scene.model.push_back(lightbulb);
+        scene.instances.push_back(1);
+        scene.translate.push_back(vec3(0));
+    }
 }
 
 void mouseCallback(GLFWwindow *window, double x, double y) {
@@ -640,8 +679,9 @@ void setupOpenGL() {
     metalTexture = loadTextureFromFile("res/textures/metal.jpg");
 
     ground = make_shared<Model>("res/models/ground.obj");
-//    amplifier = make_shared<Model>("res/models/teapot.obj");
-//    lightbulb = make_shared<Model>("res/models/light.obj");
+    amplifier = make_shared<Model>("res/models/teapot.obj");
+    weird = make_shared<Model>("res/models/weird.obj");
+    lightbulb = make_shared<Model>("res/models/light.obj");
 
     modelShader = make_shared<Shader>("res/shaders/model/vertex.glsl",
                                       "res/shaders/model/geometry.glsl",
@@ -653,8 +693,9 @@ void setupOpenGL() {
             "res/shaders/sphere/fragment.glsl");
 
     ground->shader = modelShader;
-//    amplifier->shader = modelShader;
-//    lightbulb->shader = sphereShader;
+    amplifier->shader = modelShader;
+    weird->shader = modelShader;
+    lightbulb->shader = sphereShader;
 
     setupDearImGui();
 }
@@ -669,8 +710,8 @@ void cleanUp() {
     modelShader = nullptr;
 
     lightbulb = nullptr;
-    guitar = nullptr;
     amplifier = nullptr;
+    weird = nullptr;
 
     glfwDestroyWindow(window);
     glfwTerminate();

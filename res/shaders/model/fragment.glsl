@@ -5,11 +5,14 @@
 in vec3 fPosition;
 in vec3 fNormal;
 in vec2 fTexCoords;
+in vec3 fTangent;
 
 // ///////////////////////////////////////////////////////////// Outputs //
 out vec4 outColor;
 
 // //////////////////////////////////////////////////////////// Uniforms //
+uniform bool pbrEnabled;
+
 uniform vec3 viewPos;
 uniform sampler2D texAo;
 uniform sampler2D texAlbedo;
@@ -47,9 +50,25 @@ uniform LightParameters lightPoint;
 uniform LightParameters lightSpot1;
 uniform LightParameters lightSpot2;
 
+vec3 CalcBumpedNormal()
+{
+    vec3 Normal = normalize(fNormal);
+    vec3 Tangent = normalize(fTangent);
+    Tangent = normalize(Tangent - dot(Tangent, Normal) * Normal);
+    vec3 Bitangent = cross(Tangent, Normal);
+    vec3 BumpMapNormal = texture(texNormal, fTexCoords).xyz;
+    BumpMapNormal = 2.0 * BumpMapNormal - vec3(1.0, 1.0, 1.0);
+    vec3 NewNormal;
+    mat3 TBN = mat3(Tangent, Bitangent, Normal);
+    NewNormal = TBN * BumpMapNormal;
+    NewNormal = normalize(NewNormal);
+    return NewNormal;
+}
+
 vec4 lambertBlinnPhong(LightParameters light,
                        vec3 lightDir,
                        float factor) {
+    vec3 normal     = CalcBumpedNormal();
     // Ambient
     float ambientFactor = 1.0;
     vec3 ambient = ambientFactor
@@ -57,7 +76,7 @@ vec4 lambertBlinnPhong(LightParameters light,
                    * light.ambientColor;
 
     // Diffuse
-    float diffuseFactor = clamp(dot(lightDir, fNormal), 0.0, 1.0);
+    float diffuseFactor = clamp(dot(lightDir, normal), 0.0, 1.0);
     vec3 diffuse = diffuseFactor
                    * light.diffuseIntensity
                    * light.diffuseColor;
@@ -65,7 +84,7 @@ vec4 lambertBlinnPhong(LightParameters light,
     // Specular
     float specularFactor = pow(
         clamp(
-            dot(fNormal,
+            dot(normal,
                 normalize(lightDir +                        // Half
                           normalize(viewPos - fPosition))), // View
             0.0, 1.0),
@@ -114,6 +133,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+
 vec4 pbr(LightParameters light,
 vec3 lightDir,
 float factor) {
@@ -122,7 +142,8 @@ float factor) {
     albedo.g = pow(albedo.g, 2.2);
     albedo.b = pow(albedo.b, 2.2);
 //    vec3 normal     = texture(texNormal, fTexCoords).rgb * 2.0 - 1.0;//fNormal;
-    vec3 normal     = fNormal;
+//    vec3 normal     = fNormal;
+    vec3 normal     = CalcBumpedNormal();
     float metallic  = texture(texMetalness, fTexCoords).r;
     float roughness = texture(texRoughness, fTexCoords).r;
     float ao        = texture(texAo, fTexCoords).r;
@@ -169,15 +190,23 @@ float attenuate(LightParameters light, float distance) {
 }
 
 vec4 directional(LightParameters light) {
-//    return lambertBlinnPhong(light, -normalize(light.direction), 1.0);
-    return pbr(light, -normalize(light.direction), 1.0);
+    if (pbrEnabled) {
+        return pbr(light, -normalize(light.direction), 1.0);
+    }
+    else {
+            return lambertBlinnPhong(light, -normalize(light.direction), 1.0);
+    }
 }
 
 vec4 point(LightParameters light) {
     vec3 lightDir = normalize(light.position - fPosition);
-//    return lambertBlinnPhong(light, lightDir,
-//        attenuate(light, length(light.position - fPosition)));
-    return pbr(light, lightDir, attenuate(light, length(light.position - fPosition)));
+    if (pbrEnabled) {
+        return pbr(light, lightDir, attenuate(light, length(light.position - fPosition)));
+    }
+    else {
+        return lambertBlinnPhong(light, lightDir,
+            attenuate(light, length(light.position - fPosition)));
+    }
 }
 
 vec4 spot(LightParameters light) {
@@ -186,34 +215,39 @@ vec4 spot(LightParameters light) {
     if (spotCosAngle < cos(light.angle)) {
         return vec4(0);
     }
-//    return lambertBlinnPhong(light, lightDir,
-//        (spotCosAngle - cos(light.angle)) / (1.0 - cos(light.angle))
-//         * attenuate(light, length(light.position - fPosition)));
-    return pbr(light, lightDir,
-    (spotCosAngle - cos(light.angle)) / (1.0 - cos(light.angle))
-    * attenuate(light, length(light.position - fPosition)));
+
+    if (pbrEnabled) {
+        return pbr(light, lightDir,
+        (spotCosAngle - cos(light.angle)) / (1.0 - cos(light.angle))
+        * attenuate(light, length(light.position - fPosition)));
+    }
+    else {
+        return lambertBlinnPhong(light, lightDir,
+            (spotCosAngle - cos(light.angle)) / (1.0 - cos(light.angle))
+             * attenuate(light, length(light.position - fPosition)));
+    }
 }
 
 // //////////////////////////////////////////////////////////////// Main //
 void main() {
     // Final pixel color
-//    outColor = (directional(lightDirectional) * lightDirectional.enable
-//                + point(lightPoint) * lightPoint.enable
-//                + spot(lightSpot1) * lightSpot1.enable
-//                + spot(lightSpot2) * lightSpot2.enable)
-//                * texture(texAlbedo, fTexCoords);
     outColor = (directional(lightDirectional) * lightDirectional.enable
-                    + point(lightPoint) * lightPoint.enable
-                    + spot(lightSpot1) * lightSpot1.enable
-                    + spot(lightSpot2) * lightSpot2.enable);
+                + point(lightPoint) * lightPoint.enable
+                + spot(lightSpot1) * lightSpot1.enable
+                + spot(lightSpot2) * lightSpot2.enable);
 
-    vec3 ambient = vec3(0);//vec3(0.03) * texture(texAlbedo, fTexCoords).rgb * texture(texAo, fTexCoords).rgb;
-    vec3 color = ambient + outColor.rgb;
+    vec3 ambient = /*vec3(0.5) * texture(texAlbedo, fTexCoords).rgb * */texture(texAo, fTexCoords).rgb;
+    vec3 color = ambient * outColor.rgb;
 
-    color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0/2.2));
+    if (pbrEnabled) {
+//        color = color / (color + vec3(1.0));
+        color = pow(color, vec3(1.0/2.2));
 
-    outColor = vec4(color, 1.0);
+        outColor = vec4(color, 1.0);
+    }
+    else {
+        outColor = vec4(color, 1.0) * texture(texAlbedo, fTexCoords);
+    }
 }
 
 // ///////////////////////////////////////////////////////////////////// //

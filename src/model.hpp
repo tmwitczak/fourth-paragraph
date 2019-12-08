@@ -19,7 +19,7 @@ private:
 public:
     Model(std::string const &path);
 
-    void render(std::shared_ptr<Shader> shader,
+    void render(std::shared_ptr<Shader> shader, int instances = 1,
                 GLuint const overrideTexture = 0) const;
     
 private:

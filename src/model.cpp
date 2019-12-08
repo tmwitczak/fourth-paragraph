@@ -31,10 +31,10 @@ Model::Model(string const &path) {
     loadModel(path);
 }
 
-void Model::render(shared_ptr<Shader> shader0,
+void Model::render(shared_ptr<Shader> shader0, int instances,
                    GLuint const overrideTexture) const {
     for (auto const &mesh : meshes) {
-        mesh.render(shader0, overrideTexture);
+        mesh.render(shader0, instances, overrideTexture);
     }
 }
 
@@ -105,6 +105,41 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
 
         vertices.push_back(vertex);
     }
+    //--------------------
+    for (unsigned int i = 0 ; i < indices.size() ; i += 3) {
+        Vertex& v0 = vertices[indices[i]];
+        Vertex& v1 = vertices[indices[i+1]];
+        Vertex& v2 = vertices[indices[i+2]];
+
+        vec3 Edge1 = v1.position - v0.position;
+        vec3 Edge2 = v2.position - v0.position;
+
+        float DeltaU1 = v1.texCoords.x - v0.texCoords.x;
+        float DeltaV1 = v1.texCoords.y - v0.texCoords.y;
+        float DeltaU2 = v2.texCoords.x - v0.texCoords.x;
+        float DeltaV2 = v2.texCoords.y - v0.texCoords.y;
+
+        float f = 1.0f / (DeltaU1 * DeltaV2 - DeltaU2 * DeltaV1);
+
+        vec3 Tangent, Bitangent;
+
+        Tangent.x = f * (DeltaV2 * Edge1.x - DeltaV1 * Edge2.x);
+        Tangent.y = f * (DeltaV2 * Edge1.y - DeltaV1 * Edge2.y);
+        Tangent.z = f * (DeltaV2 * Edge1.z - DeltaV1 * Edge2.z);
+
+        Bitangent.x = f * (-DeltaU2 * Edge1.x - DeltaU1 * Edge2.x);
+        Bitangent.y = f * (-DeltaU2 * Edge1.y - DeltaU1 * Edge2.y);
+        Bitangent.z = f * (-DeltaU2 * Edge1.z - DeltaU1 * Edge2.z);
+
+        v0.tangent += Tangent;
+        v1.tangent += Tangent;
+        v2.tangent += Tangent;
+    }
+
+    for (unsigned int i = 0 ; i < vertices.size() ; i++) {
+        vertices[i].tangent /= vertices[i].tangent.length();
+    }
+    //--------------------
 
     for(int i = 0; i < mesh->mNumFaces; ++i) {
         aiFace face = mesh->mFaces[i];
