@@ -1,20 +1,15 @@
-#include <iostream>
-
-using namespace std;
 // //////////////////////////////////////////////////////////// Includes //
 #include "model.hpp"
 #include "opengl-headers.hpp"
 #include "shader.hpp"
 
-#include <chrono>
-#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <exception>
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <tuple>
 #include <vector>
 
@@ -22,15 +17,15 @@ using sysclock = std::chrono::system_clock;
 using sec = std::chrono::duration<float>;
 
 // ////////////////////////////////////////////////////////////// Usings //
+using glm::cross;
 using glm::mat4;
+using glm::normalize;
 using glm::perspective;
 using glm::radians;
 using glm::rotate;
 using glm::scale;
 using glm::value_ptr;
 using glm::vec3;
-using glm::normalize;
-using glm::cross;
 
 using std::array;
 using std::begin;
@@ -38,44 +33,43 @@ using std::cerr;
 using std::end;
 using std::endl;
 using std::exception;
-using std::make_unique;
 using std::make_shared;
+using std::make_unique;
+using std::shared_ptr;
 using std::string;
 using std::stringstream;
 using std::unique_ptr;
-using std::shared_ptr;
 using std::vector;
 
-template<typename T>
+// ////////////////////////////////////////////////////// Math functions //
+template <typename T>
 T clamp(T x, T min, T max) {
     return ((x < min) ? min : ((x > max) ? max : x));
 }
-
-template<typename T>
+template <typename T>
 T lerp(T a, T b, float alpha) {
     return (1.0f - alpha) * a + alpha * b;
 }
 
+// //////////////////////////////////////////////// Additional variables //
 vec3 cameraPos(5.0f);
-mat4 vp;
 
 bool pbrEnabled = true;
 bool quitProgram = false;
-
+// ///////////////////////////////////////////////////////// Conversions //
 vec3 ImVec4ToVec3(ImVec4 a) {
     return vec3(a.x, a.y, a.z);
 }
-
 ImVec4 Vec3ToImVec4(vec3 a) {
     return {a.x, a.y, a.z, 1.0};
 }
-
+// ///////////////////////////////////////////////////// Enum: LightType //
 enum LightType {
     LT_POINT,
     LT_DIRECTIONAL,
     LT_SPOT
 };
-
+// ///////////////////////////////////////////// Struct: LightParameters //
 struct LightParameters {
     string name;
     LightType type;
@@ -120,63 +114,83 @@ struct LightParameters {
     }
 };
 
+// Lights
 LightParameters lightDirectional = {
-        "lightDirectional",
-        LT_DIRECTIONAL,
-        0.5,
-        {1.0, -0.1, 0.3, 1.0},
-        {0.0, 0.0, 0.0, 1.0},
-        radians(0.0),
-        0.0, 0.0, 0.0,
-        0.1, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 0.82, 0.63, 1.0},
-        0.5, {1.0, 1.0, 1.0, 1.0}, 32.0
-};
+    "lightDirectional",
+    LT_DIRECTIONAL,
+    0.5,
+    {1.0, -0.1, 0.3, 1.0},
+    {0.0, 0.0, 0.0, 1.0},
+    radians(0.0),
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    {1.0, 1.0, 1.0, 1.0},
+    1.0,
+    {1.0, 0.82, 0.63, 1.0},
+    1.0,
+    {1.0, 1.0, 1.0, 1.0},
+    256.0};
 LightParameters lightPoint = {
-        "lightPoint",
-        LT_POINT,
-        1.0,
-        {0.0, 0.0, 0.0, 1.0},
-        {0.0, 10.0, 0.0, 1.0},
-        radians(0.0),
-        0.0, 0.05, 0.01,
-        0.0, {1.0, 1.0, 1.0, 1.0},
-        1.0, {1.0, 0.57, 0.16, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0}, 32.0
-};
+    "lightPoint",
+    LT_POINT,
+    1.0,
+    {0.0, 0.0, 0.0, 1.0},
+    {0.0, 10.0, 0.0, 1.0},
+    radians(0.0),
+    0.0,
+    0.05,
+    0.01,
+    0.0,
+    {1.0, 1.0, 1.0, 1.0},
+    1.0,
+    {1.0, 0.57, 0.16, 1.0},
+    1.0,
+    {1.0, 1.0, 1.0, 1.0},
+    256.0};
 LightParameters lightSpot1 = {
-        "lightSpot1",
-        LT_SPOT,
-        1.0,
-        {1.0, -1.0, 0.0, 1.0},
-        {-10.0, 5.0, 0.0, 1.0},
-        radians(60.0),
-        0.0, 0.025, 0.005,
-        0.35, {1.0, 0.0, 0.0, 1.0},
-        0.5, {1.0, 0.0, 0.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0}, 128.0
-};
+    "lightSpot1",
+    LT_SPOT,
+    1.0,
+    {1.0, -1.0, 0.0, 1.0},
+    {-10.0, 5.0, 0.0, 1.0},
+    radians(60.0),
+    0.0,
+    0.025,
+    0.005,
+    0.0,
+    {1.0, 0.0, 0.0, 1.0},
+    1.0,
+    {1.0, 0.0, 0.0, 1.0},
+    1.0,
+    {1.0, 1.0, 1.0, 1.0},
+    256.0};
 LightParameters lightSpot2 = {
-        "lightSpot2",
-        LT_SPOT,
-        1.0,
-        {-1.0, -1.0, -1.0, 1.0},
-        {0.0, 15.0, 25.0, 1.0},
-        radians(20.0),
-        0.0, 0.005, 0.0,
-        0.2, {0.3, 0.4, 1.0, 1.0},
-        1.0, {0.3, 0.4, 1.0, 1.0},
-        1.0, {1.0, 1.0, 1.0, 1.0}, 2.0
-};
+    "lightSpot2",
+    LT_SPOT,
+    1.0,
+    {-1.0, -1.0, -1.0, 1.0},
+    {0.0, 15.0, 25.0, 1.0},
+    radians(20.0),
+    0.0,
+    0.005,
+    0.0,
+    0.0,
+    {0.3, 0.4, 1.0, 1.0},
+    1.0,
+    {0.3, 0.4, 1.0, 1.0},
+    1.0,
+    {1.0, 1.0, 1.0, 1.0},
+    256.0};
 
 // /////////////////////////////////////////////////// Struct: GraphNode //
 struct GraphNode {
     vector<mat4> transform;
     vector<shared_ptr<Renderable>> model;
     vector<int> instances;
-    vector<vec3> translate;
+    vector<vec3> offset;
     GLuint overrideTexture;
-    vector<shared_ptr<GraphNode>> children;
 
     GraphNode() : overrideTexture(0) {}
 
@@ -188,16 +202,14 @@ struct GraphNode {
                 model[i]->shader->use();
                 model[i]->shader->uniformMatrix4fv("transform",
                                                    value_ptr(
-                                                           renderTransform));
+                                                       renderTransform));
                 model[i]->shader->uniformMatrix4fv("world",
                                                    value_ptr(
-                                                           transform[i]));
-                model[i]->shader->uniformMatrix4fv("vpMatrix",
-                                                   value_ptr(vp));
+                                                       transform[i]));
                 model[i]->shader->uniform3f("viewPos", cameraPos.x,
                                             cameraPos.y,
                                             cameraPos.z);
-                model[i]->shader->uniform3f("translate", translate[i]);
+                model[i]->shader->uniform3f("offset", offset[i]);
 
                 lightDirectional.setShaderParameters(model[i]->shader);
                 lightPoint.setShaderParameters(model[i]->shader);
@@ -207,10 +219,6 @@ struct GraphNode {
                 model[i]->render(model[i]->shader, instances[i], overrideTexture);
             }
         }
-
-//        for (auto const &child : children) {
-//            child->render(renderTransform);
-//        }
     }
 };
 
@@ -225,15 +233,15 @@ GLFWwindow *window = nullptr;
 
 // ---------------------------------------------------------- Shaders -- //
 shared_ptr<Shader> modelShader,
-        sphereShader;
+    sphereShader;
 
 // --------------------------------------------------------- Textures -- //
 GLuint plywoodTexture = 0,
-        metalTexture = 0;
+       metalTexture = 0;
 
 // ----------------------------------------------------------- Camera -- //
 vec3 cameraFront(1.0f, 0.0f, 0.0f),
-        cameraUp(0.0f, 1.0f, 0.0f);
+    cameraUp(0.0f, 1.0f, 0.0f);
 
 vec3 cameraPosTarget = cameraPos;
 vec3 cameraFrontTarget = cameraFront;
@@ -279,9 +287,9 @@ GLuint loadTextureFromFile(string const &filename) {
 
         int imageWidth, imageHeight, imageNumberOfChannels;
         unsigned char *textureData = stbi_load(
-                filename.c_str(),
-                &imageWidth, &imageHeight,
-                &imageNumberOfChannels, 0);
+            filename.c_str(),
+            &imageWidth, &imageHeight,
+            &imageNumberOfChannels, 0);
 
         if (textureData == nullptr) {
             throw exception("Failed to load texture!");
@@ -317,17 +325,17 @@ GLuint loadTextureFromFile(string const &filename) {
 
 // /////////////////////////////////////////////////////// Class: Sphere //
 class Sphere : public Renderable {
-public:
+   public:
     static constexpr int SUBDIVISION_LEVEL_MIN = 1;
     static constexpr int SUBDIVISION_LEVEL_MAX = 7;
 
-private:
+   private:
     GLuint vao, vbo;
     GLuint texture;
 
     vec3 const point{0.0f, 0.0f, 0.0f};
 
-public:
+   public:
     static int subdivisionLevel;
 
     Sphere() {
@@ -379,7 +387,6 @@ public:
 
 int Sphere::subdivisionLevel = Sphere::SUBDIVISION_LEVEL_MAX;
 
-
 // ////////////////////////////////////////////////////// User interface //
 void setupDearImGui() {
     constexpr char const *GLSL_VERSION = "#version 430";
@@ -400,11 +407,11 @@ void constructTabForLight(LightParameters &light) {
     ImGui::NewLine();
     ImGui::SliderFloat("Enable", &light.enable, 0.0f, 1.0f);
     if (light.type != LT_POINT) {
-        ImGui::SliderFloat3("Direction", (float *) &light.direction, -1.0f,
+        ImGui::SliderFloat3("Direction", (float *)&light.direction, -1.0f,
                             1.0f);
     }
-    if (light.type != LT_DIRECTIONAL){
-        ImGui::SliderFloat3("Position", (float *) &light.position, -25.0f,
+    if (light.type != LT_DIRECTIONAL) {
+        ImGui::SliderFloat3("Position", (float *)&light.position, -25.0f,
                             25.0f);
     }
     if (light.type == LT_SPOT) {
@@ -412,16 +419,16 @@ void constructTabForLight(LightParameters &light) {
     }
 
     if (pbrEnabled) {
-        ImGui::ColorEdit3("Color ", (float *) &light.diffuseColor);
+        ImGui::ColorEdit3("Color ", (float *)&light.diffuseColor);
     }
-//    ImGui::Separator();
+    //    ImGui::Separator();
     ImGui::NewLine();
     if (light.type != LT_DIRECTIONAL) {
         ImGui::Text("Attenuation");
         ImGui::SliderFloat("Constant", &light.attenuationConstant, 0.0f, 1.0f);
         ImGui::SliderFloat("Linear", &light.attenuationLinear, 0.0f, 1.0f);
         ImGui::SliderFloat("Quadratic", &light.attenuationQuadratic, 0.0f, 1.0f);
-//        ImGui::Separator();
+        //        ImGui::Separator();
         ImGui::NewLine();
     }
 
@@ -429,24 +436,24 @@ void constructTabForLight(LightParameters &light) {
         ImGui::Text("Ambient");
         ImGui::SliderFloat("Intensity", &light.ambientIntensity, 0.0f,
                            1.0f);
-        ImGui::ColorEdit3("Color", (float *) &light.ambientColor);
-//    ImGui::Separator();
+        ImGui::ColorEdit3("Color", (float *)&light.ambientColor);
+        //    ImGui::Separator();
         ImGui::NewLine();
 
         ImGui::Text("Diffuse");
         ImGui::SliderFloat("Intensity ", &light.diffuseIntensity, 0.0f,
                            1.0f);
-        ImGui::ColorEdit3("Color ", (float *) &light.diffuseColor);
-//    ImGui::Separator();
+        ImGui::ColorEdit3("Color ", (float *)&light.diffuseColor);
+        //    ImGui::Separator();
         ImGui::NewLine();
 
         ImGui::Text("Specular");
         ImGui::SliderFloat("Intensity  ", &light.specularIntensity, 0.0f,
                            1.0f);
-        ImGui::ColorEdit3("Color  ", (float *) &light.specularColor);
+        ImGui::ColorEdit3("Color  ", (float *)&light.specularColor);
         ImGui::SliderFloat("Shininess", &light.specularShininess, 1.0f,
-                           128.0f);
-//    ImGui::Separator();
+                           256.0f);
+        //    ImGui::Separator();
         ImGui::NewLine();
     }
 
@@ -475,7 +482,7 @@ void prepareUserInterfaceWindow() {
         }
         ImGui::NewLine();
         ImGui::Separator();
-//        ImGui::NewLine();
+        //        ImGui::NewLine();
 
         ImGui::BeginTabBar("Lights");
 
@@ -495,7 +502,7 @@ void prepareUserInterfaceWindow() {
         ImGui::EndTabBar();
 
         ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
-//        ImGui::SetWindowSize(ImVec2(300.0f, WINDOW_HEIGHT / 1.25f));
+        //        ImGui::SetWindowSize(ImVec2(300.0f, WINDOW_HEIGHT / 1.25f));
     }
     ImGui::End();
     ImGui::Render();
@@ -504,14 +511,14 @@ void prepareUserInterfaceWindow() {
 // //////////////////////////////////////////////////////// Setup OpenGL //
 void setupGLFW() {
     glfwSetErrorCallback(
-            [](int const errorNumber,
-               char const *description) {
-                cerr << "GLFW;"
-                     << "Error " << errorNumber
-                     << "; "
-                     << "Description: "
-                     << description;
-            });
+        [](int const errorNumber,
+           char const *description) {
+            cerr << "GLFW;"
+                 << "Error " << errorNumber
+                 << "; "
+                 << "Description: "
+                 << description;
+        });
     if (!glfwInit()) {
         throw exception("glfwInit error");
     }
@@ -544,11 +551,11 @@ void initializeOpenGLLoader() {
     failedToInitializeOpenGL = (glewInit() != GLEW_OK);
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
     failedToInitializeOpenGL = !gladLoadGLLoader(
-            (GLADloadproc) glfwGetProcAddress);
+        (GLADloadproc)glfwGetProcAddress);
 #endif
     if (failedToInitializeOpenGL) {
         throw exception(
-                "Failed to initialize OpenGL loader!");
+            "Failed to initialize OpenGL loader!");
     }
 }
 
@@ -559,45 +566,45 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
     angle += glm::radians(30.0f) * deltaTime;
 
     lightPoint.position = Vec3ToImVec4(
-            glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
-            glm::vec4(25, 5, 0, 1));
+        glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
+        glm::vec4(25, 5, 0, 1));
 
     // Scene elements
     scene.transform.clear();
     scene.model.clear();
     scene.instances.clear();
-    scene.translate.clear();
+    scene.offset.clear();
 
     scene.transform.push_back(identity);
     scene.model.push_back(ground);
     scene.instances.push_back(1);
-    scene.translate.push_back(vec3(0));
+    scene.offset.push_back(vec3(0));
 
     scene.transform.push_back(identity);
     scene.model.push_back(weird);
     scene.instances.push_back(25);
-    scene.translate.push_back(vec3(2.5, 0, 2.5));
+    scene.offset.push_back(vec3(2.5, 0, 2.5));
 
     scene.transform.push_back(identity);
     scene.model.push_back(amplifier);
     scene.instances.push_back(25);
-    scene.translate.push_back(vec3(0));
+    scene.offset.push_back(vec3(0));
 
     if (showLightDummies) {
-        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightPoint.position)));
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(lightPoint.position)));
         scene.model.push_back(lightbulb);
         scene.instances.push_back(1);
-        scene.translate.push_back(vec3(0));
+        scene.offset.push_back(vec3(0));
 
-        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot1.position)));
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(lightSpot1.position)));
         scene.model.push_back(lightbulb);
         scene.instances.push_back(1);
-        scene.translate.push_back(vec3(0));
+        scene.offset.push_back(vec3(0));
 
-        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3( lightSpot2.position)));
+        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(lightSpot2.position)));
         scene.model.push_back(lightbulb);
         scene.instances.push_back(1);
-        scene.translate.push_back(vec3(0));
+        scene.offset.push_back(vec3(0));
     }
 }
 
@@ -611,9 +618,9 @@ void mouseCallback(GLFWwindow *window, double x, double y) {
 
     // Calculate mouse offset and update its position
     GLfloat offsetX =
-            mouseSensitivityFactor * (x - mousePositionLastX);
+        mouseSensitivityFactor * (x - mousePositionLastX);
     GLfloat offsetY =
-            mouseSensitivityFactor * (-(y - mousePositionLastY));
+        mouseSensitivityFactor * (-(y - mousePositionLastY));
 
     mousePositionLastX = x;
     mousePositionLastY = y;
@@ -624,10 +631,9 @@ void mouseCallback(GLFWwindow *window, double x, double y) {
 
     // Update camera's front vector
     cameraFrontTarget = normalize(
-            vec3(cos(yaw) * cos(pitch),
-                 sin(pitch),
-                 sin(yaw) * cos(pitch))
-    );
+        vec3(cos(yaw) * cos(pitch),
+             sin(pitch),
+             sin(yaw) * cos(pitch)));
 }
 
 void handleKeyboardInput(float const deltaTime) {
@@ -635,11 +641,11 @@ void handleKeyboardInput(float const deltaTime) {
 
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
         cameraPosTarget +=
-                deltaTime * CAMERA_SPEED * normalize(cameraFront);
+            deltaTime * CAMERA_SPEED * normalize(cameraFront);
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         cameraPosTarget -=
-                deltaTime * CAMERA_SPEED * normalize(cameraFront);
+            deltaTime * CAMERA_SPEED * normalize(cameraFront);
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         cameraPosTarget -= deltaTime * CAMERA_SPEED *
@@ -665,7 +671,6 @@ void handleKeyboardInput(float const deltaTime) {
                                    : GLFW_CURSOR_NORMAL);
         glfwSetCursorPosCallback(window,
                                  grabMouse ? mouseCallback : nullptr);
-
     }
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE) {
         spacePressed = false;
@@ -675,7 +680,6 @@ void handleKeyboardInput(float const deltaTime) {
         quitProgram = true;
     }
 }
-
 
 void setupOpenGL() {
     setupGLFW();
@@ -688,7 +692,7 @@ void setupOpenGL() {
     glfwSetCursorPosCallback(window, mouseCallback);
 
     plywoodTexture = loadTextureFromFile(
-            "res/textures/light.jpg");
+        "res/textures/light.jpg");
     metalTexture = loadTextureFromFile("res/textures/metal.jpg");
 
     ground = make_shared<Model>("res/models/ground.obj");
@@ -701,9 +705,9 @@ void setupOpenGL() {
                                       "res/shaders/model/fragment.glsl");
 
     sphereShader = make_shared<Shader>(
-            "res/shaders/sphere/vertex.glsl",
-            "res/shaders/sphere/geometry.glsl",
-            "res/shaders/sphere/fragment.glsl");
+        "res/shaders/lightbulb/vertex.glsl",
+        "res/shaders/lightbulb/geometry.glsl",
+        "res/shaders/lightbulb/fragment.glsl");
 
     ground->shader = modelShader;
     amplifier->shader = modelShader;
@@ -764,30 +768,27 @@ void performMainLoop() {
         cameraFront = lerp(cameraFront, cameraFrontTarget, 0.1f);
 
         mat4 const projection = perspective(radians(60.0f),
-                                            ((float) displayWidth) /
-                                            ((float) displayHeight),
+                                            ((float)displayWidth) /
+                                                ((float)displayHeight),
                                             0.01f, 100.0f);
         mat4 const view = lookAt(cameraPos,
                                  cameraPos + cameraFront,
                                  cameraUp);
-        vp = projection * view;
 
         setupSceneGraph(deltaTime.count(), displayWidth,
                         displayHeight);
-        scene.render(vp);
-
+        scene.render(projection * view);
 
         // ------------------------------------------------------- UI -- //
         prepareUserInterfaceWindow();
         ImGui_ImplOpenGL3_RenderDrawData(
-                ImGui::GetDrawData());
+            ImGui::GetDrawData());
 
         // -------------------------------------------- Update screen -- //
         glfwMakeContextCurrent(window);
         glfwSwapBuffers(window);
     }
 }
-
 
 // //////////////////////////////////////////////////////////////// Main //
 int main() {

@@ -18,35 +18,31 @@ uniform mat4 world;
 uniform mat4 transform;
 
 uniform int instances;
-uniform vec3 translate;
+uniform vec3 offset;
 
+// /////////////////////////////////////////////// Instance translations //
 vec3 translations[25];
-int index = 0;
 void createTranslations() {
-    for (float z = -16; z < 16; z += 6.4) {
-        for (float x = -16; x < 16; x += 6.4) {
-            vec3 translation;
-            translation.x = float(x);// / 10.0f + offset;
-//            translation.x = 0.0;
-            translation.y = 0.0;
-//            translation.z = 0.0;
-            translation.z = float(z);// / 10.0f + offset;
-            translations[index++] = translation + translate;
+    int i = 0;
+    for (float z = -16.0; z < 16.0; z += 6.4) {
+        for (float x = -16.0; x < 16.0; x += 6.4) {
+            translations[i++] = vec3(x, 0.0, z) + offset;
         }
     }
 }
 
 // //////////////////////////////////////////////////////////////// Main //
 void main() {
+    // If needed, translate instanced objects
     if (instances > 1) {
         createTranslations();
-    }
-    else {
-        for (int i = 0; i < 25; i++) {
+    } else {
+        for (int i = 0; i < 25; ++i) {
             translations[i] = vec3(0);
         }
     }
 
+    // Pass variables to geometry shader
     gPosition = (world * vec4(vPosition + translations[gl_InstanceID], 1.0)).xyz;
     gNormal = normalize((world * vec4(vNormal, 1.0)).xyz);
     gTexCoords = vTexCoords;
