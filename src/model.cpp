@@ -101,7 +101,8 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
 
         vertices.push_back(vertex);
     }
-    //--------------------
+
+    // Calculate tangent vectors
     for (int i = 0; i < indices.size(); i += 3) {
         Vertex &v0 = vertices[indices[i]];
         Vertex &v1 = vertices[indices[i + 1]];
@@ -120,11 +121,11 @@ Mesh Model::processMesh(aiMesh *mesh, const aiScene *scene) {
         v1.tangent += tangent;
         v2.tangent += tangent;
     }
-
-    for (unsigned int i = 0; i < vertices.size(); i++) {
-        vertices[i].tangent /= vertices[i].tangent.length();
+    for (auto & vertex : vertices) {
+        vertex.tangent /= vertex.tangent.length();
     }
-    //--------------------
+
+    //---------------------------
 
     for (int i = 0; i < mesh->mNumFaces; ++i) {
         aiFace face = mesh->mFaces[i];

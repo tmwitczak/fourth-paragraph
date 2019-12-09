@@ -232,12 +232,7 @@ char const *WINDOW_TITLE = "Tomasz Witczak 216920 - Zadanie 4";
 GLFWwindow *window = nullptr;
 
 // ---------------------------------------------------------- Shaders -- //
-shared_ptr<Shader> modelShader,
-    sphereShader;
-
-// --------------------------------------------------------- Textures -- //
-GLuint plywoodTexture = 0,
-       metalTexture = 0;
+shared_ptr<Shader> modelShader, lightbulbShader;
 
 // ----------------------------------------------------------- Camera -- //
 vec3 cameraFront(1.0f, 0.0f, 0.0f),
@@ -265,7 +260,7 @@ bool wireframeMode = false;
 bool showLightDummies = true;
 
 // ----------------------------------------------------------- Models -- //
-shared_ptr<Renderable> ground, amplifier, weird, lightbulb;
+shared_ptr<Renderable> ground, teapot, weird, lightbulb;
 
 // //////////////////////////////////////////////////////////// Textures //
 GLuint loadTextureFromFile(string const &filename) {
@@ -323,70 +318,6 @@ GLuint loadTextureFromFile(string const &filename) {
     return texture;
 }
 
-// /////////////////////////////////////////////////////// Class: Sphere //
-class Sphere : public Renderable {
-   public:
-    static constexpr int SUBDIVISION_LEVEL_MIN = 1;
-    static constexpr int SUBDIVISION_LEVEL_MAX = 7;
-
-   private:
-    GLuint vao, vbo;
-    GLuint texture;
-
-    vec3 const point{0.0f, 0.0f, 0.0f};
-
-   public:
-    static int subdivisionLevel;
-
-    Sphere() {
-        glGenVertexArrays(1, &vao);
-        glGenBuffers(1, &vbo);
-
-        glBindVertexArray(vao);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex), &point,
-                     GL_STATIC_DRAW);
-
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
-                              sizeof(vec3), nullptr);
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-
-        texture = loadTextureFromFile("res/textures/jupiter.jpg");
-    }
-
-    ~Sphere() {
-        glDeleteBuffers(1, &vbo);
-        glDeleteVertexArrays(1, &vao);
-    }
-
-    void render(shared_ptr<Shader> shader,
-                GLuint const overrideTexture) const {
-        shader->use();
-
-        sphereShader->uniform1i("subdivisionLevelHorizontal",
-                                subdivisionLevel + 2);
-        sphereShader->uniform1i("subdivisionLevelVertical",
-                                subdivisionLevel + 1);
-
-        sphereShader->uniform1i("texture0", 0);
-
-        glEnable(GL_DEPTH_TEST);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D,
-                      overrideTexture != 0 ? overrideTexture : texture);
-
-        glBindVertexArray(vao);
-        glDrawArrays(GL_POINTS, 0, 1);
-        glBindVertexArray(0);
-    }
-};
-
-int Sphere::subdivisionLevel = Sphere::SUBDIVISION_LEVEL_MAX;
-
 // ////////////////////////////////////////////////////// User interface //
 void setupDearImGui() {
     constexpr char const *GLSL_VERSION = "#version 430";
@@ -421,14 +352,12 @@ void constructTabForLight(LightParameters &light) {
     if (pbrEnabled) {
         ImGui::ColorEdit3("Color ", (float *)&light.diffuseColor);
     }
-    //    ImGui::Separator();
     ImGui::NewLine();
     if (light.type != LT_DIRECTIONAL) {
         ImGui::Text("Attenuation");
         ImGui::SliderFloat("Constant", &light.attenuationConstant, 0.0f, 1.0f);
         ImGui::SliderFloat("Linear", &light.attenuationLinear, 0.0f, 1.0f);
         ImGui::SliderFloat("Quadratic", &light.attenuationQuadratic, 0.0f, 1.0f);
-        //        ImGui::Separator();
         ImGui::NewLine();
     }
 
@@ -437,14 +366,12 @@ void constructTabForLight(LightParameters &light) {
         ImGui::SliderFloat("Intensity", &light.ambientIntensity, 0.0f,
                            1.0f);
         ImGui::ColorEdit3("Color", (float *)&light.ambientColor);
-        //    ImGui::Separator();
         ImGui::NewLine();
 
         ImGui::Text("Diffuse");
         ImGui::SliderFloat("Intensity ", &light.diffuseIntensity, 0.0f,
                            1.0f);
         ImGui::ColorEdit3("Color ", (float *)&light.diffuseColor);
-        //    ImGui::Separator();
         ImGui::NewLine();
 
         ImGui::Text("Specular");
@@ -453,7 +380,6 @@ void constructTabForLight(LightParameters &light) {
         ImGui::ColorEdit3("Color  ", (float *)&light.specularColor);
         ImGui::SliderFloat("Shininess", &light.specularShininess, 1.0f,
                            256.0f);
-        //    ImGui::Separator();
         ImGui::NewLine();
     }
 
@@ -482,7 +408,6 @@ void prepareUserInterfaceWindow() {
         }
         ImGui::NewLine();
         ImGui::Separator();
-        //        ImGui::NewLine();
 
         ImGui::BeginTabBar("Lights");
 
@@ -502,7 +427,6 @@ void prepareUserInterfaceWindow() {
         ImGui::EndTabBar();
 
         ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
-        //        ImGui::SetWindowSize(ImVec2(300.0f, WINDOW_HEIGHT / 1.25f));
     }
     ImGui::End();
     ImGui::Render();
@@ -565,6 +489,7 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
     static float angle = 0.0f;
     angle += glm::radians(30.0f) * deltaTime;
 
+    // Update point light's position
     lightPoint.position = Vec3ToImVec4(
         glm::rotate(identity, angle, vec3(0.0f, 1.0f, 0.0f)) *
         glm::vec4(25, 5, 0, 1));
@@ -578,33 +503,33 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
     scene.transform.push_back(identity);
     scene.model.push_back(ground);
     scene.instances.push_back(1);
-    scene.offset.push_back(vec3(0));
+    scene.offset.emplace_back(0);
 
     scene.transform.push_back(identity);
     scene.model.push_back(weird);
     scene.instances.push_back(25);
-    scene.offset.push_back(vec3(2.5, 0, 2.5));
+    scene.offset.emplace_back(2.5, 0, 2.5);
 
     scene.transform.push_back(identity);
-    scene.model.push_back(amplifier);
+    scene.model.push_back(teapot);
     scene.instances.push_back(25);
-    scene.offset.push_back(vec3(0));
+    scene.offset.emplace_back(0);
 
     if (showLightDummies) {
         scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(lightPoint.position)));
         scene.model.push_back(lightbulb);
         scene.instances.push_back(1);
-        scene.offset.push_back(vec3(0));
+        scene.offset.emplace_back(0);
 
         scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(lightSpot1.position)));
         scene.model.push_back(lightbulb);
         scene.instances.push_back(1);
-        scene.offset.push_back(vec3(0));
+        scene.offset.emplace_back(0);
 
         scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(lightSpot2.position)));
         scene.model.push_back(lightbulb);
         scene.instances.push_back(1);
-        scene.offset.push_back(vec3(0));
+        scene.offset.emplace_back(0);
     }
 }
 
@@ -691,12 +616,8 @@ void setupOpenGL() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouseCallback);
 
-    plywoodTexture = loadTextureFromFile(
-        "res/textures/light.jpg");
-    metalTexture = loadTextureFromFile("res/textures/metal.jpg");
-
     ground = make_shared<Model>("res/models/ground.obj");
-    amplifier = make_shared<Model>("res/models/teapot.obj");
+    teapot = make_shared<Model>("res/models/teapot.obj");
     weird = make_shared<Model>("res/models/weird.obj");
     lightbulb = make_shared<Model>("res/models/light.obj");
 
@@ -704,15 +625,15 @@ void setupOpenGL() {
                                       "res/shaders/model/geometry.glsl",
                                       "res/shaders/model/fragment.glsl");
 
-    sphereShader = make_shared<Shader>(
+    lightbulbShader = make_shared<Shader>(
         "res/shaders/lightbulb/vertex.glsl",
         "res/shaders/lightbulb/geometry.glsl",
         "res/shaders/lightbulb/fragment.glsl");
 
     ground->shader = modelShader;
-    amplifier->shader = modelShader;
+    teapot->shader = modelShader;
     weird->shader = modelShader;
-    lightbulb->shader = sphereShader;
+    lightbulb->shader = lightbulbShader;
 
     setupDearImGui();
 }
@@ -723,11 +644,11 @@ void cleanUp() {
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    sphereShader = nullptr;
+    lightbulbShader = nullptr;
     modelShader = nullptr;
 
     lightbulb = nullptr;
-    amplifier = nullptr;
+    teapot = nullptr;
     weird = nullptr;
 
     glfwDestroyWindow(window);
