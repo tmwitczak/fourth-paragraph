@@ -260,7 +260,7 @@ bool wireframeMode = false;
 bool showLightDummies = true;
 
 // ----------------------------------------------------------- Models -- //
-shared_ptr<Renderable> ground, teapot, weird, lightbulb;
+shared_ptr<Renderable> ground, teapot, weird, lightbulb, spotbulb;
 
 // //////////////////////////////////////////////////////////// Textures //
 GLuint loadTextureFromFile(string const &filename) {
@@ -521,13 +521,21 @@ void setupSceneGraph(float const deltaTime, float const displayWidth,
         scene.instances.push_back(1);
         scene.offset.emplace_back(0);
 
-        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(lightSpot1.position)));
-        scene.model.push_back(lightbulb);
+        vec3 a = glm::normalize(vec3(0, -1, 0));
+        vec3 b = glm::normalize(ImVec4ToVec3(lightSpot1.direction));
+        scene.transform.push_back(
+                glm::translate(mat4(1), ImVec4ToVec3(lightSpot1.position)) *
+                glm::toMat4(glm::angleAxis(glm::acos(glm::dot(a, b)), glm::normalize(glm::cross(a, b)))));
+        scene.model.push_back(spotbulb);
         scene.instances.push_back(1);
         scene.offset.emplace_back(0);
 
-        scene.transform.push_back(glm::translate(mat4(1), ImVec4ToVec3(lightSpot2.position)));
-        scene.model.push_back(lightbulb);
+        a = glm::normalize(vec3(0, -1, 0));
+        b = glm::normalize(ImVec4ToVec3(lightSpot2.direction));
+        scene.transform.push_back(
+                glm::translate(mat4(1), ImVec4ToVec3(lightSpot2.position)) *
+                glm::toMat4(glm::angleAxis(glm::acos(glm::dot(a, b)), glm::normalize(glm::cross(a, b)))));
+        scene.model.push_back(spotbulb);
         scene.instances.push_back(1);
         scene.offset.emplace_back(0);
     }
@@ -620,6 +628,7 @@ void setupOpenGL() {
     teapot = make_shared<Model>("res/models/teapot.obj");
     weird = make_shared<Model>("res/models/weird.obj");
     lightbulb = make_shared<Model>("res/models/light.obj");
+    spotbulb = make_shared<Model>("res/models/spot.obj");
 
     modelShader = make_shared<Shader>("res/shaders/model/vertex.glsl",
                                       "res/shaders/model/geometry.glsl",
@@ -634,6 +643,7 @@ void setupOpenGL() {
     teapot->shader = modelShader;
     weird->shader = modelShader;
     lightbulb->shader = lightbulbShader;
+    spotbulb->shader = lightbulbShader;
 
     setupDearImGui();
 }
@@ -648,6 +658,7 @@ void cleanUp() {
     modelShader = nullptr;
 
     lightbulb = nullptr;
+    spotbulb = nullptr;
     teapot = nullptr;
     weird = nullptr;
 
